@@ -1,2 +1,45 @@
-\section{Background}
+\section{Background}m
 \label{sec:background}
+
+\textbf{Distributed State}
+
+\begin{itemize}
+    \item \textbf{distributed snapshot}
+
+The distribute snapshot algorithm proposes that consistent distributed state
+can be captured without interfering with the execution of a system itself
+~\cite{dist_snapshots_Chandy1985}. Distributed snapshots can be computed online
+or mined from a log containing vector clocks which provide a partial ordering of events in a system~\cite{mattern_vector_clocks_1989}.
+
+    \item \textbf{\dinv}
+
+\dinv is a tool which detects likely data invariants in distributed
+systems~\cite{dinv}. \dinv operates by instrumenting distributed systems to log
+state and vector clocks. Execution logs from the nodes of the system are merged
+together, and the state of the system is reconstructed and output as a
+distributed system trace. \dinv leverages Daikon to automatically infer data
+invariants on the trace.
+
+    \item \textbf{state transition}
+
+\textit{I have no idea what to write here, I could not find anything}
+
+\end{itemize}
+
+
+\textbf{Distributed Visualization}
+
+\begin{itemize}
+
+\item modular visualization of distributed systems
+
+\item pip \textit{http://issg.cs.duke.edu/pip/}
+
+\item Overview: A Framework for Generic Online Visualization of Distributed
+Systems
+
+\item Jumpshot \textit{http://www.mcs.anl.gov/research/projects/perfvis/software/viewers/}
+
+\item vampire: http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.38.1615
+
+\end{itemize}

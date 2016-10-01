@@ -1,3 +1,17 @@
 \section{Proposed Approach}
 \label{sec:proposed-approach}
 
+To visualize the state of distributed systems we propose an $x$ step solution.
+Firstly a system must be instrumented to produce a log of its state. The log of
+the system must then me processed to extract consistent snapshots of the
+execution. The differential of consecutive snapshots are calculated. The
+differential of each node is visualized. Each of these steps is detailed below.
+To instrument distributed systems we will make use of \dinv~\cite{dinv} and
+GoVector~\cite{govector}. \dinv will be used to log state, and Govector will
+log vector clocks. \dinv will also be used to calculate consistent cuts from a
+systems logs. To perform differential analysis of each system we will construct
+a difference function $diff$. $diff$ will compute the differential between the
+variables of consecutive distributed states. The state differential will be a
+vector of $m$ variables corresponding to the velocity of distributed state
+transition. We perform differential analysis on the state velocity function and
+visualize it.
