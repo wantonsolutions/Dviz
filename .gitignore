@@ -2,3 +2,6 @@
 *.bak
 *.pdf
 *.log
+*.bbl
+*.blg
+*.aux
