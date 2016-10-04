@@ -1,55 +1,54 @@
 \section{Background}
 \label{sec:background}
 
-\textbf{Distributed State}
 
-\begin{itemize}
-    \item \textbf{distributed snapshot}
+\noindent{\textbf{Distributed Snapshot}} is an algorithm which
+proposes that consistent distributed state can be captured without
+interfering with the execution of a system itself
+~\cite{dist_snapshots_Chandy1985}.  Distributed snapshots can be
+computed online or mined from a log containing vector clocks which
+provide a partial ordering of events in a
+system~\cite{mattern_vector_clocks_1989}. We consider distributed
+snapshots to be a fundamental granularity for examining consistent
+state. Our state analysis technique is therefore applied at the level
+of a distributed snapshot.
 
-The distribute snapshot algorithm proposes that consistent distributed state
-can be captured without interfering with the execution of a system itself
-~\cite{dist_snapshots_Chandy1985}. Distributed snapshots can be computed online
-or mined from a log containing vector clocks which provide a partial ordering of events in a system~\cite{mattern_vector_clocks_1989}.
+\noindent{\textbf{\dinv}} is a tool which detects likely data invariants in distributed
+systems~\cite{dinv}. \dinv operates by instrumenting distributed
+systems to log state and vector clocks. Execution logs from the nodes
+of the system are merged together, and the state of the system is
+reconstructed and output as a distributed system trace. \dinv
+leverages Daikon to automatically infer data invariants on the trace.
+We plan to use \dinv as a tool for capturing distributed state.
 
-    \item \textbf{\dinv}
+\noindent{\textbf{Visualization}} is useful for helping users
+comprehend complicated data.  Understanding distributed systems is a
+challenging task for system designers, software developers and
+students because of their inherent complexity.  Prior work on the
+visualization on system traces has demonstrated that similarities in
+the traces between software versions can be meaningfully conveyed to
+developers~\cite{6613833}. Alternative work has demonstrated that
+visualizing concurrent system traces using partial orderings can help
+developers reason about interleaving
+executions~\cite{6650534}~\cite{7272586}. We consider the state of a
+system to be a direct artifact of a system trace. To our knowledge no
+attempts have been made to visualize distributed system traces, and by
+extension distributed state traces.
 
-\dinv is a tool which detects likely data invariants in distributed
-systems~\cite{dinv}. \dinv operates by instrumenting distributed systems to log
-state and vector clocks. Execution logs from the nodes of the system are merged
-together, and the state of the system is reconstructed and output as a
-distributed system trace. \dinv leverages Daikon to automatically infer data
-invariants on the trace.
+%There are a few studies focusing on 
+%performance diagnositics of parallel or distributed systems, but few are done
+%to understand the distributed nature in terms of state machines: 
+%how distributed states transit.
+%Visualization is suitable when there is enough data but no automatic algorithms
+%to dig out the insights that people are looking for.  Here we can generate logs
+%that we need by \textbf{TODO}, and there does not exist a general model that 
+%can capture the distributed nature.
 
-    \item \textbf{state transition}
-
-\textit{I have no idea what to write here, I could not find anything}
-
-\end{itemize}
-
-
-\textbf{Visualization for Distributed Systems}
-
-Understanding distributed systems is a challenging task for system designers, 
-software developers and students.  There are a few studies focusing on 
-performance diagnositics of parallel or distributed systems, but few are done
-to understand the distributed nature in terms of state machines: 
-how distributed states transit.
-Visualization is suitable when there is enough data but no automatic algorithms
-to dig out the insights that people are looking for.  Here we can generate logs
-that we need by \textbf{TODO}, and there does not exist a general model that 
-can capture the distributed nature.
-
-\begin{itemize}
-
-\item modular visualization of distributed systems
-
-\item pip \textit{http://issg.cs.duke.edu/pip/}
-
-\item Overview: A Framework for Generic Online Visualization of Distributed
-Systems
-
-\item Jumpshot \textit{http://www.mcs.anl.gov/research/projects/perfvis/software/viewers/}
-
-\item vampire: http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.38.1615
-
-\end{itemize}
+%\begin{itemize}
+%\item modular visualization of distributed systems
+%\item pip \textit{http://issg.cs.duke.edu/pip/}
+%\item Overview: A Framework for Generic Online Visualization of Distributed
+%Systems
+%\item Jumpshot \textit{http://www.mcs.anl.gov/research/projects/perfvis/software/viewers/}
+%\item vampire: http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.38.1615
+%\end{itemize}
