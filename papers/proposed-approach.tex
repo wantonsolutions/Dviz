@@ -1,17 +1,40 @@
 \section{Proposed Approach}
 \label{sec:proposed-approach}
 
-To visualize the state of distributed systems we propose an $x$ step solution.
-Firstly a system must be instrumented to produce a log of its state. The log of
-the system must then me processed to extract consistent snapshots of the
-execution. The differential of consecutive snapshots are calculated. The
-differential of each node is visualized. Each of these steps is detailed below.
-To instrument distributed systems we will make use of \dinv~\cite{dinv} and
-GoVector~\cite{govector}. \dinv will be used to log state, and Govector will
-log vector clocks. \dinv will also be used to calculate consistent cuts from a
-systems logs. To perform differential analysis of each system we will construct
-a difference function $diff$. $diff$ will compute the differential between the
-variables of consecutive distributed states. The state differential will be a
-vector of $m$ variables corresponding to the velocity of distributed state
-transition. We perform differential analysis on the state velocity function and
-visualize it.
+Out goal is to visualize distributed state in a comprehensive way to provide
+developers with an intuition about faulty behaviour. In order to capture
+distributed state through variable logging, and the aggregation of individual
+node state, we will leverage \dinv, a tool for detecting likely data invariants
+in distributed systems~\cite{dinv}.
+
+Distributed state is inherently complex. In its raw form it consists of
+partially ordered instances of variable values. This raw data is classically
+hard to reason about. In order to convey distributed state to a developer it
+must be summarized. We propose that the behaviour of a distributed system under
+correct execution follows predicable patters. Further that these patters are
+reflected the systems state. The first contribution that our project seeks to
+make is a state transition function $diff$ which measures the difference between
+instances of distributed state. We recognize that many functions for measuring
+state transitions could exist, our goal is to identify a $diff$ function which
+is sensitive to state transitions, and is normalized during repetitious
+behaviour.
+
+Our initial approach will be to measure state transitions as the XOR difference
+between variables in separate instances of distributed state. We formalize the
+state $\sigma$ of a system to be a vector of variables $V =
+{v_1,v_2,\dots,v_n}$. The XOR difference between two states $\sigma_i$ and
+$\sigma_j$ is $XOR(V_i,V_j)$. The resulting vector contains an indices for the
+XOR difference between each variable. The vector itself is $n$ dimensional and
+represents the XOR velocity of the systems state. To measure the effectiveness
+of our $diff$ function, we will initially plot its output as a simple line graph
+and check if predictable repetitions patters emerge between executions.
+Furthermore, we plan to plot the first and second order derivatives of $diff$,
+$diff'$ and $diff''$ respectively to determine if they also exhibit predictable
+patters. Initially we will try to detect patterns in Ricart-Agrawala
+TODO~\cite{}. If predictable patters emerge we introduce a bug which causes
+the algorithm to violate mutual exclusion. If predictable patterns emerge we
+will expand our research into larger more general system. If the difference is
+not noticeable but patterns emerge we will attempt to revise our visualization
+to better reflect the property. If no alternative visualizations demonstrate
+the irregularity, we will refine our $diff$ function to be more specific to
+Ricart-Agrawala's state variables.
