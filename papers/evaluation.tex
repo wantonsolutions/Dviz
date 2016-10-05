@@ -1,22 +1,25 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-To evaluate \dviz we will conduct a user study in which participants will use
-\dviz to identify buggy distributed systems. The purpose of the study will be
-to demonstrate that \dviz's output is useful for detecting buggy executions.
-Participants will be shown multiple visualization generated from the executions
-of three systems. To demonstrate \dviz's generality the system will be composed
-of a cross section of popular distributed applications. Specifically the
-systems will be etcd Raft~\cite{etcdraft}, Groupcache~\cite{groupcache} and
-Hashicorp Swim~\cite{das2002swim}.  In all cases bugs will be introduced into the
-systems and the buggy visualization will be displayed alongside the non-faulty
-executions. Etcd Raft will be modified so that leader elections will result in
-more than one leader.  Groupcache will not adhere to its key ownership policy.
-Swim will not fully propagate event messages to it's cluster. Study participants
-will be given a brief description of the systems and will be asked to select the
-visualization which they suspect to be faulty. Upon selecting a visualization
-participants will be asked to identify which aspects of the visual prompted
-their choice.  Finally, they will be shown snippets of source code from the
-buggy execution, and be asked to identify the block of code responsible for the
-irregular visualization.
+To evaluate \dviz we will conduct a user study in which participants
+will identify buggy distributed systems. The purpose of the study will
+be to demonstrate that \dviz's output is useful for detecting buggy
+executions.  Participants will be shown multiple visualization
+generated from the executions of three systems. To demonstrate \dviz's
+generality the system will be composed of a cross section of popular
+distributed applications. Specifically the systems will be etcd
+Raft~\cite{etcdraft}, Groupcache~\cite{groupcache} and Hashicorp
+Swim~\cite{das2002swim}.  In all cases bugs will be introduced into
+the systems and the buggy visualization will be displayed alongside
+the non-faulty executions. Etcd Raft will be modified so that leader
+elections will result in more than one leader.  Groupcache will not
+adhere to its key ownership policy.  Swim will not fully propagate
+event messages to it's cluster. Study participants will be given a
+brief description of the systems and will be asked to select the
+visualization which they suspect to be faulty. Upon selecting a
+visualization participants will be asked to identify which aspects of
+the visual prompted their choice.  Finally, they will be shown
+snippets of source code from the buggy execution, and be asked to
+identify the block of code responsible for the irregular
+visualization.
 

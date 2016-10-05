@@ -1,41 +1,37 @@
 \section{Proposed Approach}
 \label{sec:proposed-approach}
 
-Out goal is to visualize distributed state in a comprehensive way to
-provide developers with an intuition about faulty behaviour. In order
-to capture distributed state through variable logging, and the
-aggregation of individual node state, we will leverage \dinv, a tool
-for detecting likely data invariants in distributed
-systems~\cite{dinv}.
+Our goal is to visualize distributed state in a comprehensive way,
+which provides developers with an intuition about faulty behaviour. To
+capture distributed state we will leverage \dinv, a tool for detecting
+likely data invariants in distributed systems~\cite{dinv}.
 
 Distributed state is inherently complex. In its raw form it consists
-of partially ordered instances of variable values. This raw data is
-classically hard to reason about. In order to convey distributed state
-to a developer it must be summarized. We propose that the behaviour of
-a distributed system under correct execution follows predicable
-patters. Further that these patters are reflected the systems state.
-The first contribution that our project seeks to make is a state
-transition function $diff$ which measures the difference between
-instances of distributed state. We recognize that many functions for
-measuring state transitions could exist, our goal is to identify a
-$diff$ function which is sensitive to state transitions, and is
-normalized during repetitious behaviour.
+of partially ordered instances of variable values. Logs of these
+variables can be massive. In order to convey distributed state to a
+developer, it must be summarized. We propose that the behaviour of a
+distributed system under correct execution follows predicable patters.
+Further that these patters are reflected the systems state.  The first
+contribution that our project seeks to make is a state transition
+function $diff$ which measures the difference between distributed
+states. Our goal is to identify a $diff$ function which is sensitive
+to state transitions, and is normalized during repetitious behaviour.
 
-Our initial approach will be to measure state transitions as the XOR
+Our initial approach is to measure state transitions as the XOR
 difference between variables in separate instances of distributed
 state. We formalize the state $\sigma$ of a system to be a vector of
-variables $V = {v_1,v_2,\dots,v_n}$. The XOR difference between two
-states $\sigma_i$ and $\sigma_j$ is $XOR(V_i,V_j)$. The resulting
+variables $V = \{v_1,v_2,\dots,v_n\}$. The XOR difference between two
+states $\sigma_i$ and $\sigma_j$ is XOR$(V_i,V_j)$. The resulting
 vector contains an indices for the XOR difference between each
-variable. The vector itself is $n$ dimensional and represents the XOR
-velocity of the systems state. To measure the effectiveness of our
+variable. The vector itself is $n$ dimensional representation of the
+XOR velocity of the systems state. To measure the effectiveness of our
 $diff$ function, we will initially plot its output as a simple line
 graph and check if predictable repetitions patters emerge between
 executions.  Furthermore, we plan to plot the first and second order
 derivatives of $diff$, $diff'$ and $diff''$ respectively to determine
 if they also exhibit predictable patters. Initially we will try to
 detect patterns in Ricart-Agrawala. If predictable patters emerge we
-introduce a bug which causes the algorithm to violate mutual
+will introduce a bug which causes the algorithm to violate mutual
 exclusion. If predictable patterns emerge we will expand our research
 into larger more general system. If the difference is not noticeable
 but patterns emerge we will attempt to revise our visualization to
