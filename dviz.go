@@ -8,6 +8,7 @@ import (
 	"encoding/gob"
 	"regexp"
 	"bytes"
+    "math"
 
 	"bitbucket.org/bestchai/dinv/logmerger"
 )
@@ -49,8 +50,9 @@ func main () {
 	//PrintStates(states)
 	vectors := stateVectors(states)
 	velocity := diff(vectors)
-	magnitude := getMagnitude(velocity)
-	logger.Print(velocity)
+	mag := magnitude(velocity)
+    
+	logger.Print(mag)
 
 
 }
@@ -110,10 +112,15 @@ func magnitude(velocity map[string]map[string][]int64) map[string][]float64 {
 			var ithMag float64
 			for i:= 0; i<length; i++ {
 				for variable := range velocity[host] {
-					ithMag += 
-					allvars[i] = velocity[host][variable][i]
+					ithMag += float64(velocity[host][variable][i]) * float64(velocity[host][variable][i])
 				}
+                mag[host] = append(mag[host],math.Sqrt(ithMag))
 			}
+            
+        }
+    }
+    return mag
+}
 
 
 
