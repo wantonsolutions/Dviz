@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"bytes"
     "math"
+    "fmt"
+    "os/exec"
 
 	"bitbucket.org/bestchai/dinv/logmerger"
 )
@@ -20,6 +22,7 @@ const (
 var (
 	logger *log.Logger
 	difference func (a , b interface{}) int64 
+    output string
 )
 
 func main () {
@@ -27,7 +30,8 @@ func main () {
 	logger = log.New(os.Stdout,"Dviz:", log.Lshortfile)
 	//set difference function
 	difference = xor
-	logger.Printf("#Command Line Arguments %d",len(os.Args))
+    //set output filename
+    output = "plot"
 	if len(os.Args) != 2 {
 		logger.Fatal("Supply a single state.json file as an argument")
 	}
@@ -47,15 +51,18 @@ func main () {
 		}
 		states = append(states,decodedState)
 	}
-	//PrintStates(states)
+    if len(states) <= 2 {
+        logger.Fatal("error: not enough states to produce a plot\n")
+    }
+
 	vectors := stateVectors(states)
 	velocity := diff(vectors)
 	mag := magnitude(velocity)
-    
-	logger.Print(mag)
-
-
+    dat(mag)
+    gnuplot(mag)
+    render()
 }
+
 
 func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
 	r := regexp.MustCompile(regex)
@@ -121,7 +128,63 @@ func magnitude(velocity map[string]map[string][]int64) map[string][]float64 {
     }
     return mag
 }
+//set term png
+//set output "plot.png"
 
+//plot "output.dat" using 2 title 'apple' with lines, \
+//     "output.dat" using 3 title 'apricot' with lines
+
+func gnuplot(magnitude map[string][]float64) {
+    f, err := os.Create(output+ ".plot")
+    if err != nil {
+        logger.Fatal(err)
+    }
+    f.WriteString("set term png\n")
+    f.WriteString("set output \""+output+".png\"\n")
+    f.WriteString("set xlabel \"Vector Time\"\n")
+    f.WriteString("set ylabel \"State Velocity\"\n")
+    f.WriteString("plot ")
+    i := 0
+    for host := range magnitude {
+        f.WriteString(fmt.Sprintf("\"%s.dat\" using %d title '%s' with lines",output,i+2,host))
+        if i+1 != len(magnitude) {
+            f.WriteString(", \\\n\t")
+        }
+        i++
+    }
+}
+
+func dat(magnitude map[string][]float64) {
+    f, err := os.Create(output+ ".dat")
+    if err != nil {
+        logger.Fatal(err)
+    }
+    var length int
+    for host := range magnitude {
+        length = len(magnitude[host])
+        break
+    }
+    for i := 0; i < length; i++ {
+        f.WriteString(fmt.Sprintf("%d\t",i))
+        for host := range magnitude {
+            f.WriteString(fmt.Sprintf("%f\t",magnitude[host][i]))
+        }
+        f.WriteString("\n")
+    }
+}
+        
+
+
+func render() {
+    cmd := exec.Command("gnuplot", output+".plot")
+    if err := cmd.Run(); err != nil {
+        logger.Fatal(err)
+    }
+    cmd = exec.Command("display", output+".png")
+    if err := cmd.Run(); err != nil {
+        logger.Fatal(err)
+    }
+}
 
 
 
