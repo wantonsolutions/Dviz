@@ -5,10 +5,11 @@ import (
 	"io"
 	"log"
 	"encoding/json"
-	"encoding/gob"
+	//"encoding/gob"
 	"regexp"
 	"bytes"
     "math"
+    "math/big"
     "fmt"
     "os/exec"
 
@@ -17,6 +18,7 @@ import (
 
 const (
 	regex = `(?P<Host>[[:alpha:]]*)-(?P<Package>[[:alpha:]]*)_(?P<File>[[:alpha:]]*)_(?P<Line>[[:digit:]]*)_(?P<Name>[[:alnum:]]*)`
+	regex2 = `(?P<Host>[[:alnum:]]*)-(?P<Name>.*)`
 )
 
 var (
@@ -54,7 +56,9 @@ func main () {
     if len(states) <= 2 {
         logger.Fatal("error: not enough states to produce a plot\n")
     }
+	TypeCorrectJson(&states)
 
+	//logger.Println(states)
 	vectors := stateVectors(states)
 	velocity := diff(vectors)
 	mag := magnitude(velocity)
@@ -63,29 +67,66 @@ func main () {
     render()
 }
 
+func parseVariables1(name string) (string, string) {
+	r := regexp.MustCompile(regex)
+	res := r.FindStringSubmatch(name)
+	//hardcoded for the
+	//machine-package-filename-line-variable parsing
+	//logger.Printf("%#v\n", r.FindStringSubmatch(name))
+	if len(res) != 6 {
+		logger.Fatalf("regex unable to parse variable %s\n",name)
+	}
+	return res[1], res[2]+res[3]+res[4]+res[5]
+}
+
+func parseVariables2(name string) (string, string) {
+	r := regexp.MustCompile(regex2)
+	res := r.FindStringSubmatch(name)
+	//hardcoded for the
+	//machine-package-filename-line-variable parsing
+	//logger.Printf("%#v\n", r.FindStringSubmatch(name))
+	if len(res) != 3 {
+		logger.Fatalf("regex unable to parse variable %s\n",name)
+	}
+	return res[1], res[2]
+}
+
+//Json encoding is fast, but it can mess with the types of the
+//variables passed to it. For instance integers are converted to
+//floating points by adding .00 to them. This function corrects for
+//these mistakes and returns the points to their origianl state.
+func TypeCorrectJson(states *[]logmerger.State) {
+	for i := range *states {
+		for j := range (*states)[i].Points {
+			for k := range (*states)[i].Points[j].Dump {
+				if (*states)[i].Points[j].Dump[k].Type == "int" {
+					(*states)[i].Points[j].Dump[k].Value = int((*states)[i].Points[j].Dump[k].Value.(float64))
+					// fmt.Printf("type :%s\t value: %s\n",reflect.TypeOf(point.Dump[i].Value).String(),point.Dump[i].value())
+				}
+			}
+		}
+	}
+}
+
+
+
+
 
 func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
-	r := regexp.MustCompile(regex)
 	hostVectors := make(map[string]map[string][]interface{},0)
 	for _, state := range states {
 		for _, point := range state.Points {
 			for _, variable := range point.Dump {
-				//logger.Printf("%#v\n", r.FindStringSubmatch(variable.VarName))
-				res := r.FindStringSubmatch(variable.VarName)
-				//hardcoded for the
-				//machine-package-filename-line-variable parsing
-				if len(res) != 6 {
-					logger.Fatalf("regex unable to parse variable %s\n",variable.VarName)
-				}
-				_, ok := hostVectors[res[1]]
+				host, name := parseVariables2(variable.VarName)
+				_, ok := hostVectors[host]
 				if !ok {
-					hostVectors[res[1]] = make(map[string][]interface{},0)
+					hostVectors[host] = make(map[string][]interface{},0)
 				}
-				_, ok = hostVectors[res[1]][res[2]+res[3]+res[4]+res[5]]
+				_, ok = hostVectors[host][name]
 				if !ok {
-					hostVectors[res[1]][res[2]+res[3]+res[4]+res[5]] = make([]interface{},0)
+					hostVectors[host][name] = make([]interface{},0)
 				}
-				hostVectors[res[1]][res[2]+res[3]+res[4]+res[5]] = append(hostVectors[res[1]][res[2]+res[3]+res[4]+res[5]],variable.Value)
+				hostVectors[host][name] = append(hostVectors[host][name],variable.Value)
 
 				
 			}
@@ -116,13 +157,14 @@ func magnitude(velocity map[string]map[string][]int64) map[string][]float64 {
 		mag[host] = make([]float64,0)
 		for stubVar := range velocity[host] {
 			length := len(velocity[host][stubVar])
-			var ithMag float64
 			for i:= 0; i<length; i++ {
+				var ithMag float64
 				for variable := range velocity[host] {
 					ithMag += float64(velocity[host][variable][i]) * float64(velocity[host][variable][i])
 				}
                 mag[host] = append(mag[host],math.Sqrt(ithMag))
 			}
+			break
             
         }
     }
@@ -189,9 +231,8 @@ func render() {
 
 
 func xor (a , b interface{}) int64 {
-
 	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
+	enc := json.NewEncoder(&buf)
 	err := enc.Encode(a)
 	if err != nil {
 		logger.Fatal(err)
@@ -204,18 +245,41 @@ func xor (a , b interface{}) int64 {
 	}
 	bbytes := buf.Bytes()
 
+	//logger.Printf("%s %s\n",abytes,bbytes)
 	var xorDiff int64
 	var i int
 	for i =0; i< len(abytes) && i < len(bbytes); i++ {
-		if abytes[i] != bbytes[i] {
-			xorDiff++
-		}
+		abig := big.NewInt(int64(abytes[i]))
+		bbig := big.NewInt(int64(bbytes[i]))
+		z := big.NewInt(0)
+		z.Xor(abig,bbig)
+		for _, bits := range z.Bits() {
+        	xorDiff += int64(bitCounts[bits])
+    	}
 	}
 	for ;i < len(abytes); i++ {
-		xorDiff++
+		xorDiff+=8
 	}
 	for ;i < len(bbytes); i++ {
-		xorDiff++
+		xorDiff+=8
+	}
+	return xorDiff
+}
+
+func xorInt (a , b interface{}) int64 {
+	var xorDiff int64
+	switch a.(type) {
+	case int:
+		abig := big.NewInt(int64(a.(int)))
+		bbig := big.NewInt(int64(b.(int)))
+		z := big.NewInt(0)
+		z.Xor(abig,bbig)
+		for _, b := range z.Bytes() {
+			xorDiff += int64(bitCounts[uint8(b)])
+		}
+		break
+	default:
+		break
 	}
 	return xorDiff
 }
@@ -229,4 +293,38 @@ func PrintStates( states []logmerger.State) {
 		logger.Println(state.String())
 	}
 }
-
+var bitCounts = []int8{
+    // Generated by Java BitCount of all values from 0 to 255
+    0, 1, 1, 2, 1, 2, 2, 3, 
+    1, 2, 2, 3, 2, 3, 3, 4, 
+    1, 2, 2, 3, 2, 3, 3, 4, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    1, 2, 2, 3, 2, 3, 3, 4, 
+    2, 3, 3, 4, 3, 4, 4, 5,  
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    1, 2, 2, 3, 2, 3, 3, 4, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    4, 5, 5, 6, 5, 6, 6, 7, 
+    1, 2, 2, 3, 2, 3, 3, 4, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    4, 5, 5, 6, 5, 6, 6, 7, 
+    2, 3, 3, 4, 3, 4, 4, 5, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    4, 5, 5, 6, 5, 6, 6, 7, 
+    3, 4, 4, 5, 4, 5, 5, 6, 
+    4, 5, 5, 6, 5, 6, 6, 7, 
+    4, 5, 5, 6, 5, 6, 6, 7, 
+    5, 6, 6, 7, 6, 7, 7, 8,
+}
