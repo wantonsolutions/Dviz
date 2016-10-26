@@ -37,7 +37,7 @@ func main () {
 	//read in states from a command line argument
 	logger = log.New(os.Stdout,"Dviz:", log.Lshortfile)
 	//set difference function
-	difference = xor
+	difference = xorInt
     //set output filename
     output = "plot"
 	if len(os.Args) != 2 {
@@ -71,6 +71,10 @@ func main () {
 		logger.Println("making plane")
 		plane := nxnDiff(vectors)
 		dplane := nxnMag(plane)
+		nxnDat(dplane)
+		gnuplotPlane()
+
+		//output the json object
 		stateplane := StatePlane{States: states, Plane: dplane}
 		outputJson, err := os.Create("dviz.json")
 		if err != nil {
@@ -83,9 +87,9 @@ func main () {
 		velocity := diff(vectors)
 		mag := magnitude(velocity)
 		dat(mag)
-		gnuplot(mag)
-		render()
+		gnuplotLin(mag)
 	}
+	render()
 }
 
 func parseVariables1(name string) (string, string) {
@@ -174,7 +178,7 @@ func nxnDiff(vectors map[string]map[string][]interface{}) [][][]int64 {
 	for i:= 0; i<length;i++ {
 		plane[i] = make([][]int64,length)
 		for j:=0; j<length;j++ {
-			logger.Printf("[%d][%d]\n",i,j)
+			fmt.Printf("\rCalculating Diff %3.0f%%",100*(float32(i+1)/float32(len(plane))))
 			plane[i][j] = make([]int64,0)
 			for host := range vectors {
 				for variable := range vectors[host] {
@@ -183,6 +187,7 @@ func nxnDiff(vectors map[string]map[string][]interface{}) [][][]int64 {
 			}
 		}
 	}
+	fmt.Println()
 	return plane
 
 }
@@ -237,13 +242,24 @@ func nxnMag(plane [][][]int64) [][]float64 {
 	return dplane
 }
 
+
+func gnuplotPlane(){
+    f, err := os.Create(output+ ".plot")
+    if err != nil {
+        logger.Fatal(err)
+    }
+    f.WriteString("set term png\n")
+    f.WriteString("set output \""+output+".png\"\n")
+	f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n",output))
+
+}
 //set term png
 //set output "plot.png"
 
 //plot "output.dat" using 2 title 'apple' with lines, \
 //     "output.dat" using 3 title 'apricot' with lines
 
-func gnuplot(magnitude map[string][]float64) {
+func gnuplotLin(magnitude map[string][]float64) {
     f, err := os.Create(output+ ".plot")
     if err != nil {
         logger.Fatal(err)
@@ -262,6 +278,28 @@ func gnuplot(magnitude map[string][]float64) {
         i++
     }
 }
+
+func nxnDat(dplane [][]float64){
+    f, err := os.Create(output+ ".dat")
+    if err != nil {
+        logger.Fatal(err)
+    }
+	/*
+	f.WriteString("#\t")
+	for i:= range dplane {
+		f.WriteString(fmt.Sprintf("%d\t",i))
+	}
+	f.WriteString("\n")
+	*/
+	for i:= range dplane {
+		//f.WriteString(fmt.Sprintf("%d\t",i))
+		for j:= range dplane[i]{
+			f.WriteString(fmt.Sprintf("%f\t",dplane[i][j]))
+		}
+		f.WriteString("\n")
+	}
+}
+
 
 func dat(magnitude map[string][]float64) {
     f, err := os.Create(output+ ".dat")

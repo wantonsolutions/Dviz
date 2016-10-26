@@ -3,7 +3,11 @@ Distributed State Visualizer
 
 Dviz visualises the states of distibuted systems by analyzing a log of their states. The states of systems are logged and analyzed using [Dinv](https://bitbucket.org/bestchai/dinv), and visualizes them as a line graph using [gnuplot](http://www.gnuplot.info/).
 
-![Image of Distribued State Velocity](https://github.com/wantonsolutions/Dviz/blob/master/4.png)
+## Heat Plot Rendering of 5 node raft
+![](https://github.com/wantonsolutions/Dviz/blob/master/3draft.png)
+
+## Line Graph of Proxy Server
+![](https://github.com/wantonsolutions/Dviz/blob/master/2dlinn.png)
 
 ## Installing
 Dviz can be installed using the go tool
