@@ -25,7 +25,13 @@ var (
 	logger *log.Logger
 	difference func (a , b interface{}) int64 
     output string
+	nxn = true
 )
+
+type StatePlane struct {
+	States []logmerger.State
+	Plane [][]float64
+}
 
 func main () {
 	//read in states from a command line argument
@@ -56,15 +62,30 @@ func main () {
     if len(states) <= 2 {
         logger.Fatal("error: not enough states to produce a plot\n")
     }
-	TypeCorrectJson(&states)
 
-	//logger.Println(states)
+
+	TypeCorrectJson(&states)
 	vectors := stateVectors(states)
-	velocity := diff(vectors)
-	mag := magnitude(velocity)
-    dat(mag)
-    gnuplot(mag)
-    render()
+	//make the nxn matrix
+	if nxn {
+		logger.Println("making plane")
+		plane := nxnDiff(vectors)
+		dplane := nxnMag(plane)
+		stateplane := StatePlane{States: states, Plane: dplane}
+		outputJson, err := os.Create("dviz.json")
+		if err != nil {
+			logger.Fatal(err)
+		}
+		enc := json.NewEncoder(outputJson)
+		enc.Encode(stateplane)
+	} else {
+		//plot the single dimension version
+		velocity := diff(vectors)
+		mag := magnitude(velocity)
+		dat(mag)
+		gnuplot(mag)
+		render()
+	}
 }
 
 func parseVariables1(name string) (string, string) {
@@ -135,6 +156,36 @@ func stateVectors(states []logmerger.State) map[string]map[string][]interface{} 
 	return hostVectors
 }
 
+//whole host nxn diff
+//returns []stateIndex[]stateIndex[]int64
+func nxnDiff(vectors map[string]map[string][]interface{}) [][][]int64 {
+	//get state array
+	var length int
+	//get the legnth of the number of states TODO make this better
+	for host := range vectors {
+		for stubVar := range vectors[host] {
+			length = len(vectors[host][stubVar])
+			break
+		}
+		break
+	}
+	//real algorithm starts here
+	plane := make([][][]int64,length)
+	for i:= 0; i<length;i++ {
+		plane[i] = make([][]int64,length)
+		for j:=0; j<length;j++ {
+			logger.Printf("[%d][%d]\n",i,j)
+			plane[i][j] = make([]int64,0)
+			for host := range vectors {
+				for variable := range vectors[host] {
+					plane[i][j] = append(plane[i][j],difference(vectors[host][variable][i],vectors[host][variable][j]))
+				}
+			}
+		}
+	}
+	return plane
+
+}
 func diff(vectors map[string]map[string][]interface{} ) map[string]map[string][]int64 {
 	diff := make(map[string]map[string][]int64,0)
 	for host := range vectors {
@@ -170,6 +221,22 @@ func magnitude(velocity map[string]map[string][]int64) map[string][]float64 {
     }
     return mag
 }
+
+func nxnMag(plane [][][]int64) [][]float64 {
+	dplane := make([][]float64,len(plane))
+	for i := range plane {
+		dplane[i] = make([]float64,len(plane))
+		for j := range plane[i] {
+			var ithMag float64
+			for k := range plane[i][j] {
+				ithMag += float64(plane[i][j][k]) * float64(plane[i][j][k])
+			}
+			dplane[i][j] = math.Sqrt(ithMag)
+		}
+	}
+	return dplane
+}
+
 //set term png
 //set output "plot.png"
 
