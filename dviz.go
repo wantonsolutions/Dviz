@@ -40,8 +40,8 @@ func main () {
 	difference = xorInt
     //set output filename
     output = "plot"
-	if len(os.Args) != 2 {
-		logger.Fatal("Supply a single state.json file as an argument")
+	if len(os.Args) != 3 {
+		logger.Fatal("Supply an input.json and output.json")
 	}
 	filename := os.Args[1]
 	jsonFile, err := os.Open(filename)
