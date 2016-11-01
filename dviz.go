@@ -24,8 +24,8 @@ const (
 var (
 	logger *log.Logger
 	difference func (a , b interface{}) int64 
-    output string
-	nxn = true
+	draw = false
+	render string
 )
 
 type StatePlane struct {
@@ -38,8 +38,6 @@ func main () {
 	logger = log.New(os.Stdout,"Dviz:", log.Lshortfile)
 	//set difference function
 	difference = xorInt
-    //set output filename
-    output = "plot"
 	if len(os.Args) != 3 {
 		logger.Fatal("Supply an input.json and output.json")
 	}
@@ -66,30 +64,26 @@ func main () {
 
 	TypeCorrectJson(&states)
 	vectors := stateVectors(states)
-	//make the nxn matrix
-	if nxn {
-		logger.Println("making plane")
-		plane := nxnDiff(vectors)
-		dplane := nxnMag(plane)
-		nxnDat(dplane)
-		gnuplotPlane()
+	plane := diff(vectors)
+	dplane := mag(plane)
+	output(StatePlane{States: states, Plane: dplane},os.Args[2])
 
-		//output the json object
-		stateplane := StatePlane{States: states, Plane: dplane}
-		outputJson, err := os.Create("dviz.json")
-		if err != nil {
-			logger.Fatal(err)
-		}
-		enc := json.NewEncoder(outputJson)
-		enc.Encode(stateplane)
-	} else {
-		//plot the single dimension version
-		velocity := diff(vectors)
-		mag := magnitude(velocity)
-		dat(mag)
-		gnuplotLin(mag)
+	//plot the single dimension version
+	if draw {
+		render = "default"
+		dat(dplane)
+		gnuplotPlane()
+		renderImage()
 	}
-	render()
+}
+
+func output(stateplane StatePlane, outputfile string){
+	outputJson, err := os.Create(outputfile)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	enc := json.NewEncoder(outputJson)
+	enc.Encode(stateplane)
 }
 
 func parseVariables1(name string) (string, string) {
@@ -133,10 +127,6 @@ func TypeCorrectJson(states *[]logmerger.State) {
 	}
 }
 
-
-
-
-
 func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
 	hostVectors := make(map[string]map[string][]interface{},0)
 	for _, state := range states {
@@ -162,7 +152,7 @@ func stateVectors(states []logmerger.State) map[string]map[string][]interface{} 
 
 //whole host nxn diff
 //returns []stateIndex[]stateIndex[]int64
-func nxnDiff(vectors map[string]map[string][]interface{}) [][][]int64 {
+func diff(vectors map[string]map[string][]interface{}) [][][]int64 {
 	//get state array
 	var length int
 	//get the legnth of the number of states TODO make this better
@@ -191,43 +181,8 @@ func nxnDiff(vectors map[string]map[string][]interface{}) [][][]int64 {
 	return plane
 
 }
-func diff(vectors map[string]map[string][]interface{} ) map[string]map[string][]int64 {
-	diff := make(map[string]map[string][]int64,0)
-	for host := range vectors {
-		diff[host] = make(map[string][]int64,0)
-		for variable := range vectors[host] {
-			diff[host][variable] = make([]int64,len(vectors[host][variable])-1)
-			//comparing two values means that we stop one element
-			//short
-			for i := 0; i <len(vectors[host][variable])-1; i++ {
-				diff[host][variable][i] = difference(vectors[host][variable][i],vectors[host][variable][i+1])
-			}
-		}
-	}
-	return diff
-}
 
-func magnitude(velocity map[string]map[string][]int64) map[string][]float64 {
-	mag := make(map[string][]float64,0)
-	for host := range velocity {
-		mag[host] = make([]float64,0)
-		for stubVar := range velocity[host] {
-			length := len(velocity[host][stubVar])
-			for i:= 0; i<length; i++ {
-				var ithMag float64
-				for variable := range velocity[host] {
-					ithMag += float64(velocity[host][variable][i]) * float64(velocity[host][variable][i])
-				}
-                mag[host] = append(mag[host],math.Sqrt(ithMag))
-			}
-			break
-            
-        }
-    }
-    return mag
-}
-
-func nxnMag(plane [][][]int64) [][]float64 {
+func mag(plane [][][]int64) [][]float64 {
 	dplane := make([][]float64,len(plane))
 	for i := range plane {
 		dplane[i] = make([]float64,len(plane))
@@ -244,53 +199,21 @@ func nxnMag(plane [][][]int64) [][]float64 {
 
 
 func gnuplotPlane(){
-    f, err := os.Create(output+ ".plot")
+    f, err := os.Create(render+ ".plot")
     if err != nil {
         logger.Fatal(err)
     }
     f.WriteString("set term png\n")
-    f.WriteString("set output \""+output+".png\"\n")
-	f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n",output))
+    f.WriteString("set output \""+render+".png\"\n")
+	f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n",render))
 
 }
-//set term png
-//set output "plot.png"
 
-//plot "output.dat" using 2 title 'apple' with lines, \
-//     "output.dat" using 3 title 'apricot' with lines
-
-func gnuplotLin(magnitude map[string][]float64) {
-    f, err := os.Create(output+ ".plot")
+func dat(dplane [][]float64){
+    f, err := os.Create(render+ ".dat")
     if err != nil {
         logger.Fatal(err)
     }
-    f.WriteString("set term png\n")
-    f.WriteString("set output \""+output+".png\"\n")
-    f.WriteString("set xlabel \"Vector Time\"\n")
-    f.WriteString("set ylabel \"State Velocity\"\n")
-    f.WriteString("plot ")
-    i := 0
-    for host := range magnitude {
-        f.WriteString(fmt.Sprintf("\"%s.dat\" using %d title '%s' with lines",output,i+2,host))
-        if i+1 != len(magnitude) {
-            f.WriteString(", \\\n\t")
-        }
-        i++
-    }
-}
-
-func nxnDat(dplane [][]float64){
-    f, err := os.Create(output+ ".dat")
-    if err != nil {
-        logger.Fatal(err)
-    }
-	/*
-	f.WriteString("#\t")
-	for i:= range dplane {
-		f.WriteString(fmt.Sprintf("%d\t",i))
-	}
-	f.WriteString("\n")
-	*/
 	for i:= range dplane {
 		//f.WriteString(fmt.Sprintf("%d\t",i))
 		for j:= range dplane[i]{
@@ -301,33 +224,12 @@ func nxnDat(dplane [][]float64){
 }
 
 
-func dat(magnitude map[string][]float64) {
-    f, err := os.Create(output+ ".dat")
-    if err != nil {
-        logger.Fatal(err)
-    }
-    var length int
-    for host := range magnitude {
-        length = len(magnitude[host])
-        break
-    }
-    for i := 0; i < length; i++ {
-        f.WriteString(fmt.Sprintf("%d\t",i))
-        for host := range magnitude {
-            f.WriteString(fmt.Sprintf("%f\t",magnitude[host][i]))
-        }
-        f.WriteString("\n")
-    }
-}
-        
-
-
-func render() {
-    cmd := exec.Command("gnuplot", output+".plot")
+func renderImage() {
+    cmd := exec.Command("gnuplot", render+".plot")
     if err := cmd.Run(); err != nil {
         logger.Fatal(err)
     }
-    cmd = exec.Command("display", output+".png")
+    cmd = exec.Command("display", render+".png")
     if err := cmd.Run(); err != nil {
         logger.Fatal(err)
     }
@@ -388,9 +290,6 @@ func xorInt (a , b interface{}) int64 {
 	}
 	return xorDiff
 }
-
-
-
 
 
 func PrintStates( states []logmerger.State) {
