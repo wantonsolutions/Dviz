@@ -1,0 +1,33 @@
+Daikon version 5.2.4, released May 1, 2015; http://plse.cs.washington.edu/daikon.
+Reading declaration files [12:58:43 PM]:                                                                                                                                                                                                                               Processing trace data; reading 1 dtrace file:
+[12:58:43 PM]: Finished reading 4f1e0c8923e2250ec02bf1bc54d73820c279c53a.dtrace
+                                                                               ===========================================================================
+p-_fddfb739b68ef9d1f465bac6e752276fdb1a72d0_fddfb739b68ef9d1f465bac6e752276fdb1a72d0_fddfb739b68ef9d1f465bac6e752276fdb1a72d0:::_fddfb739b68ef9d1f465bac6e752276fdb1a72d0_fddfb739b68ef9d1f465bac6e752276fdb1a72d0_fddfb739b68ef9d1f465bac6e752276fdb1a72d0
+A-lead == C-lead
+A-lead one of { -9223372036854775808L, 0 }
+A-state one of { "StateCandidate", "StateLeader" }
+B-lead == -9223372036854775808L
+B-state == "StateFollower"
+A-applied <= A-commited
+A-applied > A-lead
+A-applied >= B-applied
+A-applied > B-lead
+A-applied >= C-applied
+A-commited > A-lead
+A-commited >= B-applied
+A-commited > B-lead
+A-commited >= C-applied
+A-lead < B-applied
+A-lead < B-commited
+A-lead >= B-lead
+A-lead < C-applied
+A-lead < C-commited
+A-state != B-state
+B-applied <= B-commited
+B-applied > B-lead
+B-commited > B-lead
+B-lead < C-applied
+B-lead < C-commited
+B-state == C-state
+C-applied <= C-commited
+Exiting Daikon.
