@@ -177,7 +177,45 @@ func diff(vectors map[string]map[string][]interface{}) [][][]int64 {
 	}
 	fmt.Println()
 	return plane
+}
 
+//whole host nxn diff
+//returns []stateIndex[]stateIndex[]int64
+func diff2(vectors map[string]map[string][]interface{}) [][][]int64 {
+	//get state array
+	var length int
+	//get the legnth of the number of states TODO make this better
+	for host := range vectors {
+		for stubVar := range vectors[host] {
+			length = len(vectors[host][stubVar])
+			break
+		}
+		break
+	}
+	//generate the plane
+	plane := make([][][]int64, length)
+	for i := 0; i < length; i++ {
+		plane[i] = make([][]int64, length)
+		for j := 0; j < length; j++ {
+			fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
+			plane[i][j] = make([]int64, 0)
+		}
+	}
+	//real algorithm starts here
+	for i := 0; i < length; i++ {
+		plane[i] = make([][]int64, length)
+		for j := 0; j < length; j++ {
+			fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
+			plane[i][j] = make([]int64, 0)
+			for host := range vectors {
+				for variable := range vectors[host] {
+					plane[i][j] = append(plane[i][j], difference(vectors[host][variable][i], vectors[host][variable][j]))
+				}
+			}
+		}
+	}
+	fmt.Println()
+	return plane
 }
 
 func mag(plane [][][]int64) [][]float64 {
