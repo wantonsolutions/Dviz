@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io"
-	"log"
 	"os"
+
+	logging "github.com/op/go-logging"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
@@ -22,7 +24,16 @@ const (
 )
 
 var (
-	logger     *log.Logger
+	logger = logging.MustGetLogger("Dviz")
+	format = logging.MustStringFormatter(
+		`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+	)
+	serverMode = flag.Bool("s", false, "launch in server mode Port 3119")
+	port       = flag.String("p", "3119", "server listening port")
+	loglevel   = flag.Int("ll", 0, "log level 5:Debug 4:Info 3:Notice 2:Warning 1:Error 0:Critical")
+	filename   = flag.String("file", "", "filename: file must be json dinv output")
+	outputfile = flag.String("output", "output.json", "output filename: filename to output to")
+	logfile    = flag.String("log", "", "logfile: log to file")
 	difference func(a, b interface{}) int64
 	draw       = false
 	render     string
@@ -33,21 +44,49 @@ type StatePlane struct {
 	Plane  [][]float64
 }
 
-func main() {
-	//read in states from a command line argument
-	logger = log.New(os.Stdout, "Dviz:", log.Lshortfile)
-	//set difference function
-	difference = xor
-	if len(os.Args) != 3 {
-		logger.Fatal("Supply an input.json and output.json")
-	}
-	filename := os.Args[1]
-	jsonFile, err := os.Open(filename)
+func setupLogger() {
+	// For demo purposes, create two backend for os.Stderr.
+	backend := logging.NewLogBackend(os.Stderr, "", 0)
+
+	// For messages written to backend2 we want to add some additional
+	// information to the output, including the used log level and the name of
+	// the function.
+	backendFormatter := logging.NewBackendFormatter(backend, format)
+	// Only errors and more severe messages should be sent to backend1
+	backendlevel := logging.AddModuleLevel(backendFormatter)
+	backendlevel.SetLevel(logging.Level(*loglevel), "")
+	// Set the backends to be used.
+	logging.SetBackend(backendlevel)
+}
+
+func startServer() {
+	return
+}
+
+func executeFile() {
+	jsonFile, err := os.Open(*filename)
 	if err != nil {
 		logger.Fatal(err)
 	}
+	states := decodeAndCorrect(jsonFile)
+	dplane := dviz(states)
+	//TODO come up with a proper naming scheme
+	output(StatePlane{States: states, Plane: dplane}, *outputfile)
+
+	//plot the single dimension version
+	if draw {
+		render = "default"
+		dat(dplane)
+		gnuplotPlane()
+		renderImage()
+	}
+
+}
+
+func decodeAndCorrect(jsonFile *os.File) []logmerger.State {
 	dec := json.NewDecoder(jsonFile)
 	states := make([]logmerger.State, 0)
+	var err error
 	err = nil
 	for err == nil {
 		var decodedState logmerger.State
@@ -60,20 +99,28 @@ func main() {
 	if len(states) <= 2 {
 		logger.Fatal("error: not enough states to produce a plot\n")
 	}
-
 	TypeCorrectJson(&states)
+	return states
+}
+
+func dviz(states []logmerger.State) [][]float64 {
 	vectors := stateVectors(states)
 	plane := diff(vectors)
 	dplane := mag(plane)
-	output(StatePlane{States: states, Plane: dplane}, os.Args[2])
+	return dplane
+}
 
-	//plot the single dimension version
-	if draw {
-		render = "default"
-		dat(dplane)
-		gnuplotPlane()
-		renderImage()
+func main() {
+	flag.Parse()
+	//set difference function
+	difference = xor
+	setupLogger()
+	if *serverMode {
+		startServer()
+	} else if *filename != "" {
+		executeFile()
 	}
+
 }
 
 func output(stateplane StatePlane, outputfile string) {
@@ -308,7 +355,7 @@ func xor(a, b interface{}) int64 {
 func equal(a, b interface{}) (diff int64) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Printf("Equality type check error caught return 0 diff %s\n", r)
+			logger.Infof("Equality type check error caught return 0 diff %s\n", r)
 		}
 	}()
 	diff = 0
@@ -344,7 +391,7 @@ func xorInt(a, b interface{}) int64 {
 
 func PrintStates(states []logmerger.State) {
 	for _, state := range states {
-		logger.Println(state.String())
+		logger.Info(state.String())
 	}
 }
 
