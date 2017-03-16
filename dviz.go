@@ -1,7 +1,7 @@
 package main
 
 import (
-//	"encoding/gob"
+	//	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"io"
@@ -35,16 +35,19 @@ var (
 	serverMode = flag.Bool("s", false, "launch in server mode Port 3119")
 	port       = flag.String("p", "3119", "server listening port")
 	loglevel   = flag.Int("ll", 0, "log level 5:Debug 4:Info 3:Notice 2:Warning 1:Error 0:Critical")
+	fast       = flag.Bool("fast", false, "fast drops general structures like maps for the sake of speed")
 	filename   = flag.String("file", "", "filename: file must be json dinv output")
 	outputfile = flag.String("output", "output.json", "output filename: filename to output to")
 	logfile    = flag.String("log", "", "logfile: log to file")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
-	difference func(a, b interface{}) int64
-	draw       = false
-	render     string
-	total      int
-    targetMisses int
-    badTesting = false
+	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
+	difference   func(a, b interface{}) int64
+	draw         = false
+	render       string
+	total        int
+	targetMisses int
+	badTesting   = false
 )
 
 type StatePlane struct {
@@ -66,12 +69,7 @@ func main() {
 	//set difference function
 	difference = xor
 	setupLogger()
-
-    if badTesting {
-        runBadTests()
-        os.Exit(1)
-    }
-	//profiler setup
+	//setupProfiler()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
@@ -83,6 +81,11 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
+	if badTesting {
+		runBadTests()
+		os.Exit(1)
+	}
+
 	if *serverMode {
 		logger.Notice("Starting Dviz Server!")
 		logger.Fatal(http.ListenAndServe(":"+*port, http.HandlerFunc(handler)))
@@ -90,6 +93,17 @@ func main() {
 		executeFile()
 	}
 
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			logger.Fatal("could not create memory profile: ", err)
+		}
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			logger.Fatal("could not write memory profile: ", err)
+		}
+		f.Close()
+	}
 }
 
 func executeFile() {
@@ -101,8 +115,8 @@ func executeFile() {
 	dplane := dviz(states)
 	//TODO come up with a proper naming scheme
 	output(StatePlane{States: states, Plane: dplane}, *outputfile)
-    logger.Debugf("target misses %d\n",targetMisses)
-    logger.Debugf("target ration %f\n",float32(targetMisses)/float32(total))
+	logger.Debugf("target misses %d\n", targetMisses)
+	logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
 
 	//plot the single dimension version
 
@@ -137,8 +151,9 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 
 func dviz(states []logmerger.State) [][]float64 {
 	vectors := stateVectors(states)
-	plane := diff3(vectors)
-	dplane := mag(plane)
+	dplane := dvizMaster(vectors)
+	//plane := diff3(vectors)
+	//dplane := mag(plane)
 	return dplane
 }
 
@@ -194,19 +209,19 @@ func TypeCorrectJson(states *[]logmerger.State) {
 
 func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
 	hostVectors := make(map[string]map[string][]interface{}, 0)
-	for _, state := range states {
-		for _, point := range state.Points {
-			for _, variable := range point.Dump {
-				host, name := parseVariables2(variable.VarName)
+	for i := range states {
+		for j := range states[i].Points {
+			for k := range states[i].Points[j].Dump {
+				host, name := parseVariables2(states[i].Points[j].Dump[k].VarName)
 				_, ok := hostVectors[host]
 				if !ok {
-					hostVectors[host] = make(map[string][]interface{}, 0)
+					hostVectors[host] = make(map[string][]interface{}, len(states[i].Points))
 				}
 				_, ok = hostVectors[host][name]
 				if !ok {
-					hostVectors[host][name] = make([]interface{}, 0)
+					hostVectors[host][name] = make([]interface{}, len(states[i].Points[j].Dump))
 				}
-				hostVectors[host][name] = append(hostVectors[host][name], variable.Value)
+				hostVectors[host][name][k] = states[i].Points[j].Dump[k].Value
 
 			}
 		}
@@ -335,18 +350,88 @@ type Index struct {
 func diffThread(vectors map[string]map[string][]interface{}, input chan Index, output chan Index) {
 	for true {
 		index := <-input
-        length := 0
+		length := 0
 		for host := range vectors {
-            length += len(vectors[host])
-        }
-        index.Diffs = make([]int64,length)
-        i := 0
+			length += len(vectors[host])
+		}
+		index.Diffs = make([]int64, length)
+		i := 0
 		for host := range vectors {
 			for variable := range vectors[host] {
 				index.Diffs[i] = difference(vectors[host][variable][index.X], vectors[host][variable][index.Y])
 				total++
 			}
 		}
+		output <- index
+	}
+}
+
+type Index2 struct {
+	X    int
+	Y    int
+	Diff float64
+}
+
+func dvizMaster(vectors map[string]map[string][]interface{}) [][]float64 {
+	//get state array
+	var length int
+	//get the legnth of the number of states TODO make this better
+	for host := range vectors {
+		for stubVar := range vectors[host] {
+			length = len(vectors[host][stubVar])
+			break
+		}
+		break
+	}
+	//real algorithm starts here
+	plane := make([][]float64, length)
+	for i := 0; i < length; i++ {
+		plane[i] = make([]float64, length)
+	}
+	//launch threads
+	input := make(chan Index2, 1000)
+	output := make(chan Index2, 1000)
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go distanceWorker(vectors, input, output)
+	}
+	done := false
+	outstanding := 0
+
+	go func() {
+		for i := 0; i < length; i++ {
+			for j := i + 1; j < length; j++ {
+				input <- Index2{X: i, Y: j, Diff: 0.0}
+				outstanding++
+			}
+		}
+		done = true
+	}()
+
+	for !done || outstanding > 0 {
+		elem := <-output
+		plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
+		outstanding--
+	}
+
+	logger.Debugf("Total xor computations: %d\n", total)
+	return plane
+
+}
+
+func distanceWorker(vectors map[string]map[string][]interface{}, input chan Index2, output chan Index2) {
+	for true {
+		index := <-input
+		var runningDistance int64
+		var dVar int64
+
+		for host := range vectors {
+			for variable := range vectors[host] {
+				dVar = difference(vectors[host][variable][index.X], vectors[host][variable][index.Y])
+				runningDistance += dVar * dVar
+				total++
+			}
+		}
+		index.Diff = math.Sqrt(float64(runningDistance))
 		output <- index
 	}
 }
@@ -403,7 +488,8 @@ func renderImage() {
 }
 
 func xorGeneral(a, b interface{}) int64 {
-    targetMisses++
+	//logger.Debugf("xor General on variable %s", a)
+	targetMisses++
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	err := enc.Encode(a)
@@ -439,22 +525,26 @@ func xorGeneral(a, b interface{}) int64 {
 	return xorDiff
 }
 
-
-
 func xor(a, b interface{}) int64 {
-    switch a.(type) {
-    case bool :
-        return xorBool(a.(bool),b.(bool))
-    case int:
-        return xorInt2(a.(int),b.(int))
-    case int64:
-        return xorInt64(a.(int64),b.(int64))
-    case string:
-        return xorString(a.(string),b.(string))
-    default:
-        return xorGeneral(a,b)
-    }
-    return 0
+	if a == nil || b == nil {
+		return 0
+	}
+	switch a.(type) {
+	case bool:
+		return xorBool(a.(bool), b.(bool))
+	case int:
+		return xorInt2(a.(int), b.(int))
+	case int64:
+		return xorInt64(a.(int64), b.(int64))
+	case string:
+		return xorString(a.(string), b.(string))
+	default:
+		if !*fast {
+			return xorGeneral(a, b)
+		}
+		return 0
+	}
+	return 0
 }
 
 func equal(a, b interface{}) (diff int64) {
@@ -495,64 +585,64 @@ func xorInt(a, b interface{}) int64 {
 }
 
 func runBadTests() {
-    logger.Notice("running bad tests")
-    t1 := xorInt2(0x00000000,0x00000001)
-    if t1 != 1 {
-        logger.Errorf("error 0 xor 1 sould equal 1 not %d",t1)
-    } else {
-        logger.Debugf("0 xor 1 = %d",t1)
-    }
-    t1 = xorInt2(0x0000FF00,0x0000F000)
-    if t1 != 4 {
-        logger.Errorf("error 0x0000FF00 xor 0x0000F000 sould equal 0x0000F000 not %x",t1)
-    } else {
-        logger.Debugf("0 xor 1 = %d",t1)
-    }
-    return
+	logger.Notice("running bad tests")
+	t1 := xorInt2(0x00000000, 0x00000001)
+	if t1 != 1 {
+		logger.Errorf("error 0 xor 1 sould equal 1 not %d", t1)
+	} else {
+		logger.Debugf("0 xor 1 = %d", t1)
+	}
+	t1 = xorInt2(0x0000FF00, 0x0000F000)
+	if t1 != 4 {
+		logger.Errorf("error 0x0000FF00 xor 0x0000F000 sould equal 0x0000F000 not %x", t1)
+	} else {
+		logger.Debugf("0 xor 1 = %d", t1)
+	}
+	return
 }
 
 func xorInt2(a, b int) (xorDiff int64) {
-    var x int
-    var t uint8
-    x = a ^ b
-    for i:= 0; i < 3; i++ {
-        x, t = x>>8 , uint8(x&0xff)
-        xorDiff += int64(bitCounts[uint8(t)])
-    }
-    return
+	var x int
+	var t uint8
+	x = a ^ b
+	for i := 0; i < 3; i++ {
+		x, t = x>>8, uint8(x&0xff)
+		xorDiff += int64(bitCounts[uint8(t)])
+	}
+	return
 }
 
 func xorInt64(a, b int64) (xorDiff int64) {
-    var x int64
-    var t uint8
-    x = a ^ b
-    for i:= 0; i < 7; i++ {
-        x, t = x>>8 , uint8(x&0xff)
-        xorDiff += int64(bitCounts[uint8(t)])
-    }
-    return
+	var x int64
+	var t uint8
+	x = a ^ b
+	for i := 0; i < 7; i++ {
+		x, t = x>>8, uint8(x&0xff)
+		xorDiff += int64(bitCounts[uint8(t)])
+	}
+	return
 }
 
 func xorString(a, b string) (xorDiff int64) {
-    c, d, i := []uint8(a), []uint8(b), 0
-	for i = 0; i < len(c) && i < len(d); i++ {
-		xorDiff += int64(bitCounts[c[i]^d[i]])
+	var i int
+	for i = 0; i < len(a) && i < len(b); i++ {
+		xorDiff += int64(bitCounts[a[i]^b[i]])
 	}
-	for ; i < len(c); i++ {
+	for ; i < len(a); i++ {
 		xorDiff += 8
 	}
-	for ; i < len(d); i++ {
+	for ; i < len(b); i++ {
 		xorDiff += 8
 	}
-    return
+	return
 
 }
 
 func xorBool(a, b bool) int64 {
-    if a == b {
-        return 0
-    }
-    return 1
+	if a == b {
+		return 0
+	}
+	return 1
 }
 func PrintStates(states []logmerger.State) {
 	for _, state := range states {
@@ -609,4 +699,29 @@ func setupLogger() {
 	backendlevel.SetLevel(logging.Level(*loglevel), "")
 	// Set the backends to be used.
 	logging.SetBackend(backendlevel)
+}
+
+func setupProfiler() {
+	//profiler setup
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			logger.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			logger.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			logger.Fatal("could not create memory profile: ", err)
+		}
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			logger.Fatal("could not write memory profile: ", err)
+		}
+		f.Close()
+	}
 }

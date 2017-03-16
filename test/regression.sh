@@ -1,5 +1,7 @@
 #!/bin/bash
 
+fast="-fast"
+
 if [ "$1" == "-f" ]
 then
     input=fastinput.json
@@ -12,6 +14,7 @@ else
 fi
 
 mv output.json output-old.json
+rm Dviz
 go build ../
 
 DATE="$(date)"
@@ -23,8 +26,9 @@ echo "$1, ${DATE}" >> time.out
 
 #local
 #(/usr/bin/time -f'%E' Dviz -ll=0 -file=$input) &>> time.out
-/usr/bin/time -f'%E' Dviz -ll=7 -file=$input
-#Dviz -ll=0 -file=$input -cpuprofile cpu.prof
+/usr/bin/time -f'%E' ./Dviz $fast -ll=7 -file=$input
+#./Dviz -ll=0 -file=$input $fast -cpuprofile cpu.prof -memprofile mem.prof
+./Dviz -ll=0 -file=$input $fast -memprofile mem.prof
 cmp --silent output.json output-old.json || echo "files are different"
 #tail time.out
 
