@@ -12,7 +12,7 @@ else
 fi
 
 mv output.json output-old.json
-sudo -E  go install ../ 
+go build ../
 
 DATE="$(date)"
 echo "$1, ${DATE}" >> time.out
@@ -23,7 +23,7 @@ echo "$1, ${DATE}" >> time.out
 
 #local
 #(/usr/bin/time -f'%E' Dviz -ll=0 -file=$input) &>> time.out
-/usr/bin/time -f'%E' go run ../dviz.go -ll=7 -file=$input
+/usr/bin/time -f'%E' Dviz -ll=7 -file=$input
 #Dviz -ll=0 -file=$input -cpuprofile cpu.prof
 cmp --silent output.json output-old.json || echo "files are different"
 #tail time.out
