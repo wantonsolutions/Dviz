@@ -99,7 +99,6 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 		if err != nil && err != io.EOF {
 			logger.Fatal(err)
 		}
-		logger.Info(decodedState.String())
 		states = append(states, decodedState)
 	}
 	if len(states) <= 2 {
