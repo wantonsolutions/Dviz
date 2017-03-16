@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"net/http"
 	"os"
 
 	logging "github.com/op/go-logging"
@@ -44,23 +45,27 @@ type StatePlane struct {
 	Plane  [][]float64
 }
 
-func setupLogger() {
-	// For demo purposes, create two backend for os.Stderr.
-	backend := logging.NewLogBackend(os.Stderr, "", 0)
-
-	// For messages written to backend2 we want to add some additional
-	// information to the output, including the used log level and the name of
-	// the function.
-	backendFormatter := logging.NewBackendFormatter(backend, format)
-	// Only errors and more severe messages should be sent to backend1
-	backendlevel := logging.AddModuleLevel(backendFormatter)
-	backendlevel.SetLevel(logging.Level(*loglevel), "")
-	// Set the backends to be used.
-	logging.SetBackend(backendlevel)
+func handler(w http.ResponseWriter, r *http.Request) {
+	logger.Infof("Received Request from %s", r.Host)
+	states := decodeAndCorrect(r.Body)
+	dplane := dviz(states)
+	//buf, err := ioutil.ReadFile("." + r.URL.Path + "/index.html")
+	enc := json.NewEncoder(w)
+	enc.Encode(dplane)
 }
 
-func startServer() {
-	return
+func main() {
+	flag.Parse()
+	//set difference function
+	difference = xor
+	setupLogger()
+	if *serverMode {
+		logger.Notice("Starting Dviz Server!")
+		logger.Fatal(http.ListenAndServe(":"+*port, http.HandlerFunc(handler)))
+	} else if *filename != "" {
+		executeFile()
+	}
+
 }
 
 func executeFile() {
@@ -83,7 +88,7 @@ func executeFile() {
 
 }
 
-func decodeAndCorrect(jsonFile *os.File) []logmerger.State {
+func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 	dec := json.NewDecoder(jsonFile)
 	states := make([]logmerger.State, 0)
 	var err error
@@ -94,6 +99,7 @@ func decodeAndCorrect(jsonFile *os.File) []logmerger.State {
 		if err != nil && err != io.EOF {
 			logger.Fatal(err)
 		}
+		logger.Info(decodedState.String())
 		states = append(states, decodedState)
 	}
 	if len(states) <= 2 {
@@ -108,19 +114,6 @@ func dviz(states []logmerger.State) [][]float64 {
 	plane := diff(vectors)
 	dplane := mag(plane)
 	return dplane
-}
-
-func main() {
-	flag.Parse()
-	//set difference function
-	difference = xor
-	setupLogger()
-	if *serverMode {
-		startServer()
-	} else if *filename != "" {
-		executeFile()
-	}
-
 }
 
 func output(stateplane StatePlane, outputfile string) {
@@ -213,7 +206,7 @@ func diff(vectors map[string]map[string][]interface{}) [][][]int64 {
 	for i := 0; i < length; i++ {
 		plane[i] = make([][]int64, length)
 		for j := 0; j < length; j++ {
-			fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
+			//fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
 			plane[i][j] = make([]int64, 0)
 			for host := range vectors {
 				for variable := range vectors[host] {
@@ -429,4 +422,19 @@ var bitCounts = []int8{
 	4, 5, 5, 6, 5, 6, 6, 7,
 	4, 5, 5, 6, 5, 6, 6, 7,
 	5, 6, 6, 7, 6, 7, 7, 8,
+}
+
+func setupLogger() {
+	// For demo purposes, create two backend for os.Stderr.
+	backend := logging.NewLogBackend(os.Stderr, "", 0)
+
+	// For messages written to backend2 we want to add some additional
+	// information to the output, including the used log level and the name of
+	// the function.
+	backendFormatter := logging.NewBackendFormatter(backend, format)
+	// Only errors and more severe messages should be sent to backend1
+	backendlevel := logging.AddModuleLevel(backendFormatter)
+	backendlevel.SetLevel(logging.Level(*loglevel), "")
+	// Set the backends to be used.
+	logging.SetBackend(backendlevel)
 }
