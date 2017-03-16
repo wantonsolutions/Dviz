@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
+	"runtime/pprof"
 
 	logging "github.com/op/go-logging"
 	//"encoding/gob"
@@ -35,9 +37,11 @@ var (
 	filename   = flag.String("file", "", "filename: file must be json dinv output")
 	outputfile = flag.String("output", "output.json", "output filename: filename to output to")
 	logfile    = flag.String("log", "", "logfile: log to file")
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
 	difference func(a, b interface{}) int64
 	draw       = false
 	render     string
+	total      int
 )
 
 type StatePlane struct {
@@ -59,6 +63,18 @@ func main() {
 	//set difference function
 	difference = xor
 	setupLogger()
+	//profiler setup
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			logger.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			logger.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	if *serverMode {
 		logger.Notice("Starting Dviz Server!")
 		logger.Fatal(http.ListenAndServe(":"+*port, http.HandlerFunc(handler)))
@@ -79,6 +95,7 @@ func executeFile() {
 	output(StatePlane{States: states, Plane: dplane}, *outputfile)
 
 	//plot the single dimension version
+
 	if draw {
 		render = "default"
 		dat(dplane)
@@ -110,7 +127,7 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 
 func dviz(states []logmerger.State) [][]float64 {
 	vectors := stateVectors(states)
-	plane := diff(vectors)
+	plane := diff3(vectors)
 	dplane := mag(plane)
 	return dplane
 }
@@ -210,16 +227,15 @@ func diff(vectors map[string]map[string][]interface{}) [][][]int64 {
 			for host := range vectors {
 				for variable := range vectors[host] {
 					plane[i][j] = append(plane[i][j], difference(vectors[host][variable][i], vectors[host][variable][j]))
+					total++
 				}
 			}
 		}
 	}
-	fmt.Println()
+	logger.Debugf("Total xor computations: %d\n", total)
 	return plane
 }
 
-//whole host nxn diff
-//returns []stateIndex[]stateIndex[]int64
 func diff2(vectors map[string]map[string][]interface{}) [][][]int64 {
 	//get state array
 	var length int
@@ -231,30 +247,92 @@ func diff2(vectors map[string]map[string][]interface{}) [][][]int64 {
 		}
 		break
 	}
-	//generate the plane
+	//real algorithm starts here
 	plane := make([][][]int64, length)
 	for i := 0; i < length; i++ {
 		plane[i] = make([][]int64, length)
-		for j := 0; j < length; j++ {
-			fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
-			plane[i][j] = make([]int64, 0)
-		}
 	}
-	//real algorithm starts here
 	for i := 0; i < length; i++ {
-		plane[i] = make([][]int64, length)
-		for j := 0; j < length; j++ {
-			fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
+		for j := i + 1; j < length; j++ {
+			//fmt.Printf("\rCalculating Diff %3.0f%%", 100*(float32(i+1)/float32(len(plane))))
 			plane[i][j] = make([]int64, 0)
+			plane[j][i] = make([]int64, 0)
 			for host := range vectors {
 				for variable := range vectors[host] {
 					plane[i][j] = append(plane[i][j], difference(vectors[host][variable][i], vectors[host][variable][j]))
+					total++
 				}
 			}
+			plane[j][i] = append(plane[j][i], plane[i][j]...)
 		}
 	}
-	fmt.Println()
+	logger.Debugf("Total xor computations: %d\n", total)
 	return plane
+}
+
+func diff3(vectors map[string]map[string][]interface{}) [][][]int64 {
+	//get state array
+	var length int
+	//get the legnth of the number of states TODO make this better
+	for host := range vectors {
+		for stubVar := range vectors[host] {
+			length = len(vectors[host][stubVar])
+			break
+		}
+		break
+	}
+	//real algorithm starts here
+	plane := make([][][]int64, length)
+	for i := 0; i < length; i++ {
+		plane[i] = make([][]int64, length)
+	}
+	//launch threads
+	input := make(chan Index, 1000)
+	output := make(chan Index, 1000)
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go diffThread(vectors, input, output)
+	}
+	done := false
+	outstanding := 0
+
+	go func() {
+		for i := 0; i < length; i++ {
+			for j := i + 1; j < length; j++ {
+				input <- Index{X: i, Y: j, Diffs: make([]int64, 0)}
+				outstanding++
+			}
+		}
+		done = true
+	}()
+
+	for !done || outstanding > 0 {
+		elem := <-output
+		plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diffs, elem.Diffs
+		outstanding--
+	}
+
+	logger.Debugf("Total xor computations: %d\n", total)
+	return plane
+}
+
+type Index struct {
+	X     int
+	Y     int
+	Diffs []int64
+}
+
+//diffThread exits when sent an index of -1
+func diffThread(vectors map[string]map[string][]interface{}, input chan Index, output chan Index) {
+	for true {
+		index := <-input
+		for host := range vectors {
+			for variable := range vectors[host] {
+				index.Diffs = append(index.Diffs, difference(vectors[host][variable][index.X], vectors[host][variable][index.Y]))
+				total++
+			}
+		}
+		output <- index
+	}
 }
 
 func mag(plane [][][]int64) [][]float64 {
