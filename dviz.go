@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/gob"
+//	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"io"
@@ -43,6 +43,8 @@ var (
 	draw       = false
 	render     string
 	total      int
+    targetMisses int
+    badTesting = false
 )
 
 type StatePlane struct {
@@ -64,6 +66,11 @@ func main() {
 	//set difference function
 	difference = xor
 	setupLogger()
+
+    if badTesting {
+        runBadTests()
+        os.Exit(1)
+    }
 	//profiler setup
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -94,6 +101,8 @@ func executeFile() {
 	dplane := dviz(states)
 	//TODO come up with a proper naming scheme
 	output(StatePlane{States: states, Plane: dplane}, *outputfile)
+    logger.Debugf("target misses %d\n",targetMisses)
+    logger.Debugf("target ration %f\n",float32(targetMisses)/float32(total))
 
 	//plot the single dimension version
 
@@ -326,9 +335,15 @@ type Index struct {
 func diffThread(vectors map[string]map[string][]interface{}, input chan Index, output chan Index) {
 	for true {
 		index := <-input
+        length := 0
+		for host := range vectors {
+            length += len(vectors[host])
+        }
+        index.Diffs = make([]int64,length)
+        i := 0
 		for host := range vectors {
 			for variable := range vectors[host] {
-				index.Diffs = append(index.Diffs, difference(vectors[host][variable][index.X], vectors[host][variable][index.Y]))
+				index.Diffs[i] = difference(vectors[host][variable][index.X], vectors[host][variable][index.Y])
 				total++
 			}
 		}
@@ -387,7 +402,8 @@ func renderImage() {
 	}
 }
 
-func xor(a, b interface{}) int64 {
+func xorGeneral(a, b interface{}) int64 {
+    targetMisses++
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	err := enc.Encode(a)
@@ -423,40 +439,22 @@ func xor(a, b interface{}) int64 {
 	return xorDiff
 }
 
-func xor2(a, b interface{}) int64 {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(a)
-	if err != nil {
-		logger.Fatal(err)
-	}
-	abytes := buf.Bytes()
-	buf.Reset()
-	err = enc.Encode(b)
-	if err != nil {
-		logger.Fatal(err)
-	}
-	bbytes := buf.Bytes()
 
-	//logger.Printf("%s %s\n",abytes,bbytes)
-	var xorDiff int64
-	var i int
-	for i = 0; i < len(abytes) && i < len(bbytes); i++ {
-		abig := big.NewInt(int64(abytes[i]))
-		bbig := big.NewInt(int64(bbytes[i]))
-		z := big.NewInt(0)
-		z.Xor(abig, bbig)
-		for _, bits := range z.Bits() {
-			xorDiff += int64(bitCounts[bits])
-		}
-	}
-	for ; i < len(abytes); i++ {
-		xorDiff += 8
-	}
-	for ; i < len(bbytes); i++ {
-		xorDiff += 8
-	}
-	return xorDiff
+
+func xor(a, b interface{}) int64 {
+    switch a.(type) {
+    case bool :
+        return xorBool(a.(bool),b.(bool))
+    case int:
+        return xorInt2(a.(int),b.(int))
+    case int64:
+        return xorInt64(a.(int64),b.(int64))
+    case string:
+        return xorString(a.(string),b.(string))
+    default:
+        return xorGeneral(a,b)
+    }
+    return 0
 }
 
 func equal(a, b interface{}) (diff int64) {
@@ -496,6 +494,66 @@ func xorInt(a, b interface{}) int64 {
 	return xorDiff
 }
 
+func runBadTests() {
+    logger.Notice("running bad tests")
+    t1 := xorInt2(0x00000000,0x00000001)
+    if t1 != 1 {
+        logger.Errorf("error 0 xor 1 sould equal 1 not %d",t1)
+    } else {
+        logger.Debugf("0 xor 1 = %d",t1)
+    }
+    t1 = xorInt2(0x0000FF00,0x0000F000)
+    if t1 != 4 {
+        logger.Errorf("error 0x0000FF00 xor 0x0000F000 sould equal 0x0000F000 not %x",t1)
+    } else {
+        logger.Debugf("0 xor 1 = %d",t1)
+    }
+    return
+}
+
+func xorInt2(a, b int) (xorDiff int64) {
+    var x int
+    var t uint8
+    x = a ^ b
+    for i:= 0; i < 3; i++ {
+        x, t = x>>8 , uint8(x&0xff)
+        xorDiff += int64(bitCounts[uint8(t)])
+    }
+    return
+}
+
+func xorInt64(a, b int64) (xorDiff int64) {
+    var x int64
+    var t uint8
+    x = a ^ b
+    for i:= 0; i < 7; i++ {
+        x, t = x>>8 , uint8(x&0xff)
+        xorDiff += int64(bitCounts[uint8(t)])
+    }
+    return
+}
+
+func xorString(a, b string) (xorDiff int64) {
+    c, d, i := []uint8(a), []uint8(b), 0
+	for i = 0; i < len(c) && i < len(d); i++ {
+		xorDiff += int64(bitCounts[c[i]^d[i]])
+	}
+	for ; i < len(c); i++ {
+		xorDiff += 8
+	}
+	for ; i < len(d); i++ {
+		xorDiff += 8
+	}
+    return
+
+}
+
+func xorBool(a, b bool) int64 {
+    if a == b {
+        return 0
+    }
+    return 1
+}
 func PrintStates(states []logmerger.State) {
 	for _, state := range states {
 		logger.Info(state.String())
