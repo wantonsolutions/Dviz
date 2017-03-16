@@ -10,7 +10,7 @@ import (
 func main() {
 	filename := os.Args[1]
 	jsonFile, _ := os.Open(filename)
-	resp, err := http.Post("http://localhost:3119/", "application/json", jsonFile)
+	resp, err := http.Post("http://13.64.149.118:3119/", "application/json", jsonFile)
 	out, err := os.Create("output.json")
 	r, err := ioutil.ReadAll(resp.Body)
 	out.Write(r)

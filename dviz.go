@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"flag"
 	"io"
@@ -389,6 +390,42 @@ func renderImage() {
 func xor(a, b interface{}) int64 {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
+	err := enc.Encode(a)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	abytes := buf.Bytes()
+	buf.Reset()
+	err = enc.Encode(b)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	bbytes := buf.Bytes()
+
+	//logger.Printf("%s %s\n",abytes,bbytes)
+	var xorDiff int64
+	var i int
+	for i = 0; i < len(abytes) && i < len(bbytes); i++ {
+		abig := big.NewInt(int64(abytes[i]))
+		bbig := big.NewInt(int64(bbytes[i]))
+		z := big.NewInt(0)
+		z.Xor(abig, bbig)
+		for _, bits := range z.Bits() {
+			xorDiff += int64(bitCounts[bits])
+		}
+	}
+	for ; i < len(abytes); i++ {
+		xorDiff += 8
+	}
+	for ; i < len(bbytes); i++ {
+		xorDiff += 8
+	}
+	return xorDiff
+}
+
+func xor2(a, b interface{}) int64 {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
 	err := enc.Encode(a)
 	if err != nil {
 		logger.Fatal(err)
