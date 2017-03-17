@@ -298,12 +298,14 @@ func gnuplotPlane() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	f.WriteString("set term png\n")
-	f.WriteString("set output \"" + render + ".png\"\n")
+	f.WriteString("set term pdf\n")
+	f.WriteString("set output \"" + render + ".pdf\"\n")
 	f.WriteString("set title \"DviZ\"\n")
 	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n", render))
 	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2\n", render))
-	f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2\n", render))
+	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2 \n", render))
+	//f.WriteString("set samples 10000\n")
+	f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2 w linespoints\n", render))
 
 }
 
