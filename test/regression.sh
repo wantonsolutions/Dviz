@@ -26,9 +26,15 @@ echo "$1, ${DATE}" >> time.out
 
 #local
 #(/usr/bin/time -f'%E' Dviz -ll=0 -file=$input) &>> time.out
-/usr/bin/time -f'%E' ./Dviz $fast -ll=7 -file=$input
-#./Dviz -ll=0 -file=$input $fast -cpuprofile cpu.prof -memprofile mem.prof
-./Dviz -ll=0 -file=$input $fast -memprofile mem.prof
-cmp --silent output.json output-old.json || echo "files are different"
+#for (( i=1; i<200 ; i+=10 ))
+#do
+    #echo $i
+    /usr/bin/time -f'%E' ./Dviz $fast  -ll=7 -d -file=$input
+    #./Dviz -ll=0 -file=$input $fast -cpuprofile cpu.prof -memprofile mem.prof
+    #./Dviz -ll=0 -file=$input $fast -memprofile mem.prof
+    cmp --silent output.json output-old.json || echo "files are different"
+    display default.png
+#done
+
 #tail time.out
 

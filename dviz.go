@@ -11,7 +11,7 @@ import (
 	"runtime/pprof"
 
 	logging "github.com/op/go-logging"
-	//"github.com/sacado/tsne4go"
+	"github.com/sacado/tsne4go"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
@@ -42,9 +42,10 @@ var (
 	logfile    = flag.String("log", "", "logfile: log to file")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
 	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+    tsneItt = flag.Int("itt", 80, "tsne itterations, more increase runitme")
+	draw = flag.Bool("d", false, "draw clustered scatterplot")
 
 	difference   func(a, b interface{}) int64
-	draw         = false
 	render       string
 	total        int
 	targetMisses int
@@ -54,6 +55,7 @@ var (
 type StatePlane struct {
 	States []logmerger.State
 	Plane  [][]float64
+    Points []tsne4go.Point
 }
 
 func (sp StatePlane) Len() int { return len(sp.Plane) }
@@ -117,17 +119,17 @@ func executeFile() {
 		logger.Fatal(err)
 	}
 	states := decodeAndCorrect(jsonFile)
-	dplane := dviz(states)
+	plane := dviz(states)
 	//TODO come up with a proper naming scheme
-	output(StatePlane{States: states, Plane: dplane}, *outputfile)
+	output(plane, *outputfile)
 	logger.Debugf("target misses %d\n", targetMisses)
 	logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
 
 	//plot the single dimension version
 
-	if draw {
+	if *draw {
 		render = "default"
-		dat(dplane)
+		dat(plane)
 		gnuplotPlane()
 		renderImage()
 	}
@@ -154,14 +156,11 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 	return states
 }
 
-func dviz(states []logmerger.State) [][]float64 {
-	//vectors := stateVectors(states)
-	//dplane := dvizMaster(vectors)
+func dviz(states []logmerger.State) *StatePlane {
     dplane := dvizMaster2(&states)
-    /* TODO TSNE
-	sp := StatePlane{States: states, Plane: dplane}
+	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point,0)}
 	tsne := tsne4go.New(sp, nil)
-	for i := 0; i < 20; i++ {
+	for i := 0; i < *tsneItt; i++ {
 		tsne.Step()
 		//logger.Debugf("cost %d", cost)
 	}
@@ -171,20 +170,17 @@ func dviz(states []logmerger.State) [][]float64 {
 	for i := 0; i < len(s); i++ {
 		//logger.Debugf("point: %f %f", s[i][0], s[i][1])
 	}
-    */
-	//plane := diff(vectors)
-	//dplane := mag(plane)
-	//fmt.Println(dplane)
-	return dplane
+    sp.Points = s
+	return &sp
 }
 
-func output(stateplane StatePlane, outputfile string) {
+func output(sp *StatePlane, outputfile string) {
 	outputJson, err := os.Create(outputfile)
 	if err != nil {
 		logger.Fatal(err)
 	}
 	enc := json.NewEncoder(outputJson)
-	enc.Encode(stateplane)
+	enc.Encode(*sp)
 }
 
 func parseVariables1(name string) (string, string) {
@@ -228,30 +224,6 @@ func TypeCorrectJson(states *[]logmerger.State) {
 	}
 }
 
-//TODO I think I broke this the grid should be 300x and it is only 18
-func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
-	hostVectors := make(map[string]map[string][]interface{}, 0)
-	for i := range states {
-		for j := range states[i].Points {
-			for k := range states[i].Points[j].Dump {
-				host, name := parseVariables2(states[i].Points[j].Dump[k].VarName)
-				_, ok := hostVectors[host]
-				if !ok {
-					hostVectors[host] = make(map[string][]interface{}, len(states[i].Points))
-				}
-				//logger.Debug(len(states))
-				_, ok = hostVectors[host][name]
-				if !ok {
-					hostVectors[host][name] = make([]interface{}, len(states))
-				}
-				hostVectors[host][name][i] = states[i].Points[j].Dump[k].Value
-
-			}
-		}
-	}
-	return hostVectors
-}
-
 type Index2 struct {
 	X    int
 	Y    int
@@ -259,54 +231,9 @@ type Index2 struct {
 }
 
 
-func dvizMaster(vectors map[string]map[string][]interface{}) [][]float64 {
-	//get state array
-	var length int
-	//get the legnth of the number of states TODO make this better
-	for host := range vectors {
-		for stubVar := range vectors[host] {
-			length = len(vectors[host][stubVar])
-			break
-		}
-		break
-	}
-	//real algorithm starts here
-	plane := make([][]float64, length)
-	for i := 0; i < length; i++ {
-		plane[i] = make([]float64, length)
-	}
-	//launch threads
-	input := make(chan Index2, 1000)
-	output := make(chan Index2, 1000)
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go distanceWorker(vectors, input, output)
-	}
-	done := false
-	outstanding := 0
-
-	go func() {
-		for i := 0; i < length; i++ {
-			for j := i + 1; j < length; j++ {
-				input <- Index2{X: i, Y: j, Diff: 0.0}
-				outstanding++
-			}
-		}
-		done = true
-	}()
-
-	for !done || outstanding > 0 {
-		elem := <-output
-		plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
-		outstanding--
-	}
-
-	logger.Debugf("Total xor computations: %d\n", total)
-	return plane
-}
-
 func dvizMaster2(states *[]logmerger.State) [][]float64 {
 	//get state array
-	var length = len(*states)
+	var length = len(*states) - 1
 	//real algorithm starts here
 	plane := make([][]float64, length)
 	for i := 0; i < length; i++ {
@@ -343,23 +270,6 @@ func dvizMaster2(states *[]logmerger.State) [][]float64 {
     return nil
 }
 
-func distanceWorker(vectors map[string]map[string][]interface{}, input chan Index2, output chan Index2) {
-	for true {
-		index := <-input
-		var runningDistance int64
-		var dVar int64
-
-		for host := range vectors {
-			for variable := range vectors[host] {
-				dVar = difference(vectors[host][variable][index.X], vectors[host][variable][index.Y])
-				runningDistance += dVar * dVar
-				total++
-			}
-		}
-		index.Diff = math.Sqrt(float64(runningDistance))
-		output <- index
-	}
-}
 
 func distanceWorker2(states *[]logmerger.State, input chan Index2, output chan Index2) {
 	for true {
@@ -390,21 +300,20 @@ func gnuplotPlane() {
 	}
 	f.WriteString("set term png\n")
 	f.WriteString("set output \"" + render + ".png\"\n")
-	f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n", render))
+	f.WriteString("set title \"DviZ\"\n")
+	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n", render))
+	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2\n", render))
+	f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2\n", render))
 
 }
 
-func dat(dplane [][]float64) {
+func dat(sp *StatePlane) {
 	f, err := os.Create(render + ".dat")
 	if err != nil {
 		logger.Fatal(err)
 	}
-	for i := range dplane {
-		//f.WriteString(fmt.Sprintf("%d\t",i))
-		for j := range dplane[i] {
-			f.WriteString(fmt.Sprintf("%f\t", dplane[i][j]))
-		}
-		f.WriteString("\n")
+	for i := range (*sp).Points {
+		f.WriteString(fmt.Sprintf("%f %f\n", sp.Points[i][0],sp.Points[i][1]))
 	}
 }
 
@@ -413,10 +322,12 @@ func renderImage() {
 	if err := cmd.Run(); err != nil {
 		logger.Fatal(err)
 	}
+    /*
 	cmd = exec.Command("display", render+".png")
 	if err := cmd.Run(); err != nil {
 		logger.Fatal(err)
 	}
+    */
 }
 
 func xorGeneral(a, b interface{}) int64 {
