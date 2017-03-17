@@ -151,9 +151,10 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 
 func dviz(states []logmerger.State) [][]float64 {
 	vectors := stateVectors(states)
-	dplane := dvizMaster(vectors)
-	//plane := diff3(vectors)
-	//dplane := mag(plane)
+	//dplane := dvizMaster(vectors)
+	plane := diff(vectors)
+	dplane := mag(plane)
+	//fmt.Println(dplane)
 	return dplane
 }
 
@@ -207,6 +208,7 @@ func TypeCorrectJson(states *[]logmerger.State) {
 	}
 }
 
+//TODO I think I broke this the grid should be 300x and it is only 18
 func stateVectors(states []logmerger.State) map[string]map[string][]interface{} {
 	hostVectors := make(map[string]map[string][]interface{}, 0)
 	for i := range states {
@@ -217,11 +219,12 @@ func stateVectors(states []logmerger.State) map[string]map[string][]interface{} 
 				if !ok {
 					hostVectors[host] = make(map[string][]interface{}, len(states[i].Points))
 				}
+				//logger.Debug(len(states))
 				_, ok = hostVectors[host][name]
 				if !ok {
-					hostVectors[host][name] = make([]interface{}, len(states[i].Points[j].Dump))
+					hostVectors[host][name] = make([]interface{}, len(states))
 				}
-				hostVectors[host][name][k] = states[i].Points[j].Dump[k].Value
+				hostVectors[host][name][i] = states[i].Points[j].Dump[k].Value
 
 			}
 		}
@@ -527,6 +530,29 @@ func xorGeneral(a, b interface{}) int64 {
 
 func xor(a, b interface{}) int64 {
 	if a == nil || b == nil {
+		var tmp interface{}
+		if a == b {
+			return 0
+		} else if a == nil {
+			tmp = b
+		} else {
+			tmp = a
+		}
+		//logger.Debug(tmp)
+		switch tmp.(type) {
+		case bool:
+			return 1
+		case int, int64:
+			return xor(tmp, 0)
+		case string:
+			return xor(tmp, "")
+		default:
+			if !*fast {
+				return xorGeneral(tmp, nil)
+			}
+			return 0
+		}
+
 		return 0
 	}
 	switch a.(type) {
