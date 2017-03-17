@@ -11,7 +11,7 @@ import (
 	"runtime/pprof"
 
 	logging "github.com/op/go-logging"
-	"github.com/sacado/tsne4go"
+	//"github.com/sacado/tsne4go"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
@@ -155,8 +155,10 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 }
 
 func dviz(states []logmerger.State) [][]float64 {
-	vectors := stateVectors(states)
-	dplane := dvizMaster(vectors)
+	//vectors := stateVectors(states)
+	//dplane := dvizMaster(vectors)
+    dplane := dvizMaster2(&states)
+    /* TODO TSNE
 	sp := StatePlane{States: states, Plane: dplane}
 	tsne := tsne4go.New(sp, nil)
 	for i := 0; i < 20; i++ {
@@ -169,6 +171,7 @@ func dviz(states []logmerger.State) [][]float64 {
 	for i := 0; i < len(s); i++ {
 		//logger.Debugf("point: %f %f", s[i][0], s[i][1])
 	}
+    */
 	//plane := diff(vectors)
 	//dplane := mag(plane)
 	//fmt.Println(dplane)
@@ -255,6 +258,7 @@ type Index2 struct {
 	Diff float64
 }
 
+
 func dvizMaster(vectors map[string]map[string][]interface{}) [][]float64 {
 	//get state array
 	var length int
@@ -300,6 +304,45 @@ func dvizMaster(vectors map[string]map[string][]interface{}) [][]float64 {
 	return plane
 }
 
+func dvizMaster2(states *[]logmerger.State) [][]float64 {
+	//get state array
+	var length = len(*states)
+	//real algorithm starts here
+	plane := make([][]float64, length)
+	for i := 0; i < length; i++ {
+		plane[i] = make([]float64, length)
+	}
+	//launch threads
+	input := make(chan Index2, 1000)
+	output := make(chan Index2, 1000)
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go distanceWorker2(states, input, output)
+	}
+	done := false
+	outstanding := 0
+
+	go func() {
+		for i := 0; i < length; i++ {
+			for j := i + 1; j < length; j++ {
+				input <- Index2{X: i, Y: j, Diff: 0.0}
+				outstanding++
+			}
+		}
+		done = true
+	}()
+
+	for !done || outstanding > 0 {
+		elem := <-output
+		plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
+		outstanding--
+	}
+
+	logger.Debugf("Total xor computations: %d\n", total)
+	return plane
+    
+    return nil
+}
+
 func distanceWorker(vectors map[string]map[string][]interface{}, input chan Index2, output chan Index2) {
 	for true {
 		index := <-input
@@ -317,6 +360,28 @@ func distanceWorker(vectors map[string]map[string][]interface{}, input chan Inde
 		output <- index
 	}
 }
+
+func distanceWorker2(states *[]logmerger.State, input chan Index2, output chan Index2) {
+	for true {
+		index := <-input
+		var runningDistance int64
+		var dVar int64
+        for i := range (*states)[index.X].Points {
+            for j := range (*states)[index.X].Points[i].Dump {
+                if len((*states)[index.Y].Points) != len((*states)[index.X].Points) {
+                    //TODO see if this is systematic if so do len < 1 and dont bother checking
+                    continue
+                }
+                dVar = difference((*states)[index.X].Points[i].Dump[j].Value, (*states)[index.Y].Points[i].Dump[j].Value)
+				runningDistance += dVar * dVar
+				total++
+			}
+		}
+		index.Diff = math.Sqrt(float64(runningDistance))
+		output <- index
+	}
+}
+
 
 func gnuplotPlane() {
 	f, err := os.Create(render + ".plot")
