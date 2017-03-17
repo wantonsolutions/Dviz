@@ -151,9 +151,9 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 
 func dviz(states []logmerger.State) [][]float64 {
 	vectors := stateVectors(states)
-	//dplane := dvizMaster(vectors)
-	plane := diff(vectors)
-	dplane := mag(plane)
+	dplane := dvizMaster(vectors)
+	//plane := diff(vectors)
+	//dplane := mag(plane)
 	//fmt.Println(dplane)
 	return dplane
 }
