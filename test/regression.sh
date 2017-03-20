@@ -33,7 +33,7 @@ echo "$1, ${DATE}" >> time.out
     #./Dviz -ll=0 -file=$input $fast -cpuprofile cpu.prof -memprofile mem.prof
     #./Dviz -ll=0 -file=$input $fast -memprofile mem.prof
     cmp --silent output.json output-old.json || echo "files are different"
-    display default.png
+    evince default.pdf
 #done
 
 #tail time.out

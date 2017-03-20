@@ -12,6 +12,7 @@ import (
 
 	logging "github.com/op/go-logging"
 	"github.com/sacado/tsne4go"
+    "github.com/bobhancock/goxmeans"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"math/big"
 	"os/exec"
 	"regexp"
+    "strings"
 
 	"bitbucket.org/bestchai/dinv/logmerger"
 )
@@ -53,9 +55,25 @@ var (
 )
 
 type StatePlane struct {
-	States []logmerger.State
+	States []State
 	Plane  [][]float64
     Points []tsne4go.Point
+    NumClusters int
+}
+
+//State of a distributed program at a moment corresponding to a cut
+type State struct {
+    //Dinv Data
+	Cut           logmerger.Cut
+	Points        []logmerger.Point
+	TotalOrdering [][]int
+    //Viz Data
+    ClusterId     int
+    
+}
+
+func (s State) String() string {
+    return fmt.Sprintf("%s,%s,%s,%s",s.Cut.String(),s.Points,s.TotalOrdering,s.ClusterId)
 }
 
 func (sp StatePlane) Len() int { return len(sp.Plane) }
@@ -136,13 +154,14 @@ func executeFile() {
 
 }
 
-func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
+func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 	dec := json.NewDecoder(jsonFile)
-	states := make([]logmerger.State, 0)
+	states := make([]State, 0)
+	//states2 := make([]State, 0)
 	var err error
 	err = nil
 	for err == nil {
-		var decodedState logmerger.State
+		var decodedState State
 		err = dec.Decode(&decodedState)
 		if err != nil && err != io.EOF {
 			logger.Fatal(err)
@@ -156,7 +175,7 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []logmerger.State {
 	return states
 }
 
-func dviz(states []logmerger.State) *StatePlane {
+func dviz(states []State) *StatePlane {
     dplane := dvizMaster2(&states)
 	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point,0)}
 	tsne := tsne4go.New(sp, nil)
@@ -168,11 +187,85 @@ func dviz(states []logmerger.State) *StatePlane {
 	s := tsne.Solution
 	//logger.Debugf("%d", s[0][0])
 	for i := 0; i < len(s); i++ {
-		//logger.Debugf("point: %f %f", s[i][0], s[i][1])
+		logger.Debugf("point: %g %g", s[i][0], s[i][1])
 	}
     sp.Points = s
+    
+     
+    //Entry point for goXmeans
+    f, err := os.Create("goxmeans.input")
+    if err != nil {
+        logger.Fatal(err)
+    }
+    for i := range sp.Points {
+        //fmt.Printf("to write %g",sp.Points[i][0])
+        f.WriteString(fmt.Sprintf("%g,%g\n",sp.Points[i][0],sp.Points[i][1]))
+    }
+    //copy paste goXmeans
+    data, err := goxmeans.Load("goxmeans.input", ",")
+    if err != nil {
+        logger.Fatalf("Load: ", err)
+    }
+    fmt.Println("Load complete")
+
+    var k = 2
+    var kmax = 6
+    // Type of data measurement between points.
+    var measurer goxmeans.EuclidDist
+    // How to select your initial centroids.
+    var cc goxmeans.DataCentroids
+    // How to select centroids for bisection.
+    bisectcc := goxmeans.EllipseCentroids{1.0}
+    // Initial matrix of centroids to use
+    centroids := cc.ChooseCentroids(data, k)
+    models, errs := goxmeans.Xmeans(data, centroids, k, kmax, cc, bisectcc, measurer)
+    if len(errs) > 0 {
+        for k, v := range errs {
+            fmt.Printf("%s: %v\n", k, v)
+        }
+    }
+    // Find and display the best model
+    bestbic := math.Inf(-1)
+    bestidx := 0
+    for i, m := range models {
+        if m.Bic > bestbic {
+            bestbic = m.Bic
+            bestidx = i
+        }
+        logger.Debugf("%d: #centroids=%d BIC=%f\n", i, m.Numcentroids(), m.Bic)
+    }
+    logger.Debugf("\nBest fit:[ %d: #centroids=%d BIC=%f]\n", bestidx, models[bestidx].Numcentroids(), models[bestidx].Bic)
+    bestm := models[bestidx]
+    sp.NumClusters = len(bestm.Clusters)
+    for i, c := range bestm.Clusters {
+        logger.Debugf("cluster-%d: numpoints=%d variance=%f\n", i, c.Numpoints(), c.Variance)
+        //logger.Debugf("%s",c.Points.String())
+    }
+
+
+    clusterMap := make(map[tsne4go.Point]int,0)
+    for i, c := range bestm.Clusters {
+        for j:= 0 ; j<c.Points.Rows();j++ {
+            x, y := c.Points.Get(j,0), c.Points.Get(j,1)
+            clusterMap[tsne4go.Point{x,y}]=i
+        }
+    }
+
+    for i , point := range sp.Points {
+        sp.States[i].ClusterId = clusterMap[point]
+    }
+    
+    ClusterInvariants(&sp)
+
 	return &sp
 }
+
+func trim64point(p64 tsne4go.Point) tsne4go.Point {
+    p64[0], p64[1] = float64(float32(p64[0])), float64(float32(p64[1]))
+    return p64
+}
+
+
 
 func output(sp *StatePlane, outputfile string) {
 	outputJson, err := os.Create(outputfile)
@@ -211,7 +304,7 @@ func parseVariables2(name string) (string, string) {
 //variables passed to it. For instance integers are converted to
 //floating points by adding .00 to them. This function corrects for
 //these mistakes and returns the points to their origianl state.
-func TypeCorrectJson(states *[]logmerger.State) {
+func TypeCorrectJson(states *[]State) {
 	for i := range *states {
 		for j := range (*states)[i].Points {
 			for k := range (*states)[i].Points[j].Dump {
@@ -231,7 +324,7 @@ type Index2 struct {
 }
 
 
-func dvizMaster2(states *[]logmerger.State) [][]float64 {
+func dvizMaster2(states *[]State) [][]float64 {
 	//get state array
 	var length = len(*states) - 1
 	//real algorithm starts here
@@ -271,7 +364,7 @@ func dvizMaster2(states *[]logmerger.State) [][]float64 {
 }
 
 
-func distanceWorker2(states *[]logmerger.State, input chan Index2, output chan Index2) {
+func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
 	for true {
 		index := <-input
 		var runningDistance int64
@@ -301,11 +394,10 @@ func gnuplotPlane() {
 	f.WriteString("set term pdf\n")
 	f.WriteString("set output \"" + render + ".pdf\"\n")
 	f.WriteString("set title \"DviZ\"\n")
-	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" matrix with image\n", render))
-	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2\n", render))
-	//f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2 \n", render))
-	//f.WriteString("set samples 10000\n")
-	f.WriteString(fmt.Sprintf("plot \"%s.dat\" using 1:2 w linespoints\n", render))
+	f.WriteString(fmt.Sprintf("plot \"%s.dat\" with points palette, \\\n", render))
+	//f.WriteString(fmt.Sprintf("\t '' using 1:2 w linespoints\n"))
+//plot "default.dat" with points palette, \
+//    '' using 1:2 w linespoints
 
 }
 
@@ -315,7 +407,7 @@ func dat(sp *StatePlane) {
 		logger.Fatal(err)
 	}
 	for i := range (*sp).Points {
-		f.WriteString(fmt.Sprintf("%f %f\n", sp.Points[i][0],sp.Points[i][1]))
+		f.WriteString(fmt.Sprintf("%f %f %d\n", sp.Points[i][0],sp.Points[i][1],sp.States[i].ClusterId))
 	}
 }
 
@@ -512,7 +604,7 @@ func xorBool(a, b bool) int64 {
 	}
 	return 1
 }
-func PrintStates(states []logmerger.State) {
+func PrintStates(states []State) {
 	for _, state := range states {
 		logger.Info(state.String())
 	}
@@ -593,3 +685,38 @@ func setupProfiler() {
 		f.Close()
 	}
 }
+
+func ClusterInvariants(sp *StatePlane) {
+    //build daikon files
+    clusterLogs := make([][]logmerger.Point,sp.NumClusters)
+    for i := range sp.States {
+        //bucket clusters of points into seperate files. Merge the points of individual states together.
+        clusterLogs[sp.States[i].ClusterId] = append(clusterLogs[sp.States[i].ClusterId],logmerger.MergePoints(sp.States[i].Points))
+    }
+    //TODO filter based on hosts and variables
+    for i := range clusterLogs {
+        logger.Debug("writing to daikon log")
+        logmerger.WriteToDaikon(clusterLogs[i],fmt.Sprintf("c%d",i))
+    }
+    //execute daikon collect Invariants
+    
+    clusterinvs := make([]map[string]bool,sp.NumClusters)
+    for i := range clusterLogs {
+        cmd := exec.Command("java", "daikon.Daikon",fmt.Sprintf("c%d.dtrace",i))
+        stdoutStderr, err := cmd.CombinedOutput()
+        if err != nil {
+            logger.Fatal(err)
+        }
+        //logger.Debug("%s\n",string(stdoutStderr))
+        clusterinvs[i] = make(map[string]bool)
+        invs := strings.SplitAfter(string(stdoutStderr),"\n")
+        //Avoid the first and last line while building maps, they contain text which is not invaraints
+        for j := 3; j < len(invs)-1;j++{
+            clusterinvs[i][invs[j]]=true
+        }
+        logger.Debug(clusterinvs)
+        //split up invariants into individual lines and store them
+    }
+    
+}
+    
