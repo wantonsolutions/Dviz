@@ -8,6 +8,9 @@ then
 elif [ "$1" == "-s" ]
 then
     input=slowinput.json
+elif [ "$1" == "-b" ]
+then
+    input=big.json
 else
     echo "usage -f fast -s slow"
     exit

@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"runtime/pprof"
 
+	"github.com/bobhancock/goxmeans"
 	logging "github.com/op/go-logging"
 	"github.com/sacado/tsne4go"
-    "github.com/bobhancock/goxmeans"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
@@ -20,7 +20,7 @@ import (
 	"math/big"
 	"os/exec"
 	"regexp"
-    "strings"
+	"strings"
 
 	"bitbucket.org/bestchai/dinv/logmerger"
 )
@@ -44,8 +44,8 @@ var (
 	logfile    = flag.String("log", "", "logfile: log to file")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
 	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
-    tsneItt = flag.Int("itt", 80, "tsne itterations, more increase runitme")
-	draw = flag.Bool("d", false, "draw clustered scatterplot")
+	tsneItt    = flag.Int("itt", 400, "tsne itterations, more increase runitme")
+	draw       = flag.Bool("d", false, "draw clustered scatterplot")
 
 	difference   func(a, b interface{}) int64
 	render       string
@@ -55,25 +55,24 @@ var (
 )
 
 type StatePlane struct {
-	States []State
-	Plane  [][]float64
-    Points []tsne4go.Point
-    NumClusters int
+	States      []State
+	Plane       [][]float64
+	Points      []tsne4go.Point
+	NumClusters int
 }
 
 //State of a distributed program at a moment corresponding to a cut
 type State struct {
-    //Dinv Data
+	//Dinv Data
 	Cut           logmerger.Cut
 	Points        []logmerger.Point
 	TotalOrdering [][]int
-    //Viz Data
-    ClusterId     int
-    
+	//Viz Data
+	ClusterId int
 }
 
 func (s State) String() string {
-    return fmt.Sprintf("%s,%s,%s,%s",s.Cut.String(),s.Points,s.TotalOrdering,s.ClusterId)
+	return fmt.Sprintf("%s,%s,%s,%s", s.Cut.String(), s.Points, s.TotalOrdering, s.ClusterId)
 }
 
 func (sp StatePlane) Len() int { return len(sp.Plane) }
@@ -176,8 +175,8 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 }
 
 func dviz(states []State) *StatePlane {
-    dplane := dvizMaster2(&states)
-	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point,0)}
+	dplane := dvizMaster2(&states)
+	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point, 0)}
 	tsne := tsne4go.New(sp, nil)
 	for i := 0; i < *tsneItt; i++ {
 		tsne.Step()
@@ -189,83 +188,79 @@ func dviz(states []State) *StatePlane {
 	for i := 0; i < len(s); i++ {
 		logger.Debugf("point: %g %g", s[i][0], s[i][1])
 	}
-    sp.Points = s
-    
-     
-    //Entry point for goXmeans
-    f, err := os.Create("goxmeans.input")
-    if err != nil {
-        logger.Fatal(err)
-    }
-    for i := range sp.Points {
-        //fmt.Printf("to write %g",sp.Points[i][0])
-        f.WriteString(fmt.Sprintf("%g,%g\n",sp.Points[i][0],sp.Points[i][1]))
-    }
-    //copy paste goXmeans
-    data, err := goxmeans.Load("goxmeans.input", ",")
-    if err != nil {
-        logger.Fatalf("Load: ", err)
-    }
-    fmt.Println("Load complete")
+	sp.Points = s
 
-    var k = 2
-    var kmax = 6
-    // Type of data measurement between points.
-    var measurer goxmeans.EuclidDist
-    // How to select your initial centroids.
-    var cc goxmeans.DataCentroids
-    // How to select centroids for bisection.
-    bisectcc := goxmeans.EllipseCentroids{1.0}
-    // Initial matrix of centroids to use
-    centroids := cc.ChooseCentroids(data, k)
-    models, errs := goxmeans.Xmeans(data, centroids, k, kmax, cc, bisectcc, measurer)
-    if len(errs) > 0 {
-        for k, v := range errs {
-            fmt.Printf("%s: %v\n", k, v)
-        }
-    }
-    // Find and display the best model
-    bestbic := math.Inf(-1)
-    bestidx := 0
-    for i, m := range models {
-        if m.Bic > bestbic {
-            bestbic = m.Bic
-            bestidx = i
-        }
-        logger.Debugf("%d: #centroids=%d BIC=%f\n", i, m.Numcentroids(), m.Bic)
-    }
-    logger.Debugf("\nBest fit:[ %d: #centroids=%d BIC=%f]\n", bestidx, models[bestidx].Numcentroids(), models[bestidx].Bic)
-    bestm := models[bestidx]
-    sp.NumClusters = len(bestm.Clusters)
-    for i, c := range bestm.Clusters {
-        logger.Debugf("cluster-%d: numpoints=%d variance=%f\n", i, c.Numpoints(), c.Variance)
-        //logger.Debugf("%s",c.Points.String())
-    }
+	//Entry point for goXmeans
+	f, err := os.Create("goxmeans.input")
+	if err != nil {
+		logger.Fatal(err)
+	}
+	for i := range sp.Points {
+		//fmt.Printf("to write %g",sp.Points[i][0])
+		f.WriteString(fmt.Sprintf("%g,%g\n", sp.Points[i][0], sp.Points[i][1]))
+	}
+	//copy paste goXmeans
+	data, err := goxmeans.Load("goxmeans.input", ",")
+	if err != nil {
+		logger.Fatalf("Load: ", err)
+	}
+	fmt.Println("Load complete")
 
+	var k = 2
+	var kmax = 6
+	// Type of data measurement between points.
+	var measurer goxmeans.EuclidDist
+	// How to select your initial centroids.
+	var cc goxmeans.DataCentroids
+	// How to select centroids for bisection.
+	bisectcc := goxmeans.EllipseCentroids{1.0}
+	// Initial matrix of centroids to use
+	centroids := cc.ChooseCentroids(data, k)
+	models, errs := goxmeans.Xmeans(data, centroids, k, kmax, cc, bisectcc, measurer)
+	if len(errs) > 0 {
+		for k, v := range errs {
+			fmt.Printf("%s: %v\n", k, v)
+		}
+	}
+	// Find and display the best model
+	bestbic := math.Inf(-1)
+	bestidx := 0
+	for i, m := range models {
+		if m.Bic > bestbic {
+			bestbic = m.Bic
+			bestidx = i
+		}
+		logger.Debugf("%d: #centroids=%d BIC=%f\n", i, m.Numcentroids(), m.Bic)
+	}
+	logger.Debugf("\nBest fit:[ %d: #centroids=%d BIC=%f]\n", bestidx, models[bestidx].Numcentroids(), models[bestidx].Bic)
+	bestm := models[bestidx]
+	sp.NumClusters = len(bestm.Clusters)
+	for i, c := range bestm.Clusters {
+		logger.Debugf("cluster-%d: numpoints=%d variance=%f\n", i, c.Numpoints(), c.Variance)
+		//logger.Debugf("%s",c.Points.String())
+	}
 
-    clusterMap := make(map[tsne4go.Point]int,0)
-    for i, c := range bestm.Clusters {
-        for j:= 0 ; j<c.Points.Rows();j++ {
-            x, y := c.Points.Get(j,0), c.Points.Get(j,1)
-            clusterMap[tsne4go.Point{x,y}]=i
-        }
-    }
+	clusterMap := make(map[tsne4go.Point]int, 0)
+	for i, c := range bestm.Clusters {
+		for j := 0; j < c.Points.Rows(); j++ {
+			x, y := c.Points.Get(j, 0), c.Points.Get(j, 1)
+			clusterMap[tsne4go.Point{x, y}] = i
+		}
+	}
 
-    for i , point := range sp.Points {
-        sp.States[i].ClusterId = clusterMap[point]
-    }
-    
-    ClusterInvariants(&sp)
+	for i, point := range sp.Points {
+		sp.States[i].ClusterId = clusterMap[point]
+	}
+
+	ClusterInvariants(&sp)
 
 	return &sp
 }
 
 func trim64point(p64 tsne4go.Point) tsne4go.Point {
-    p64[0], p64[1] = float64(float32(p64[0])), float64(float32(p64[1]))
-    return p64
+	p64[0], p64[1] = float64(float32(p64[0])), float64(float32(p64[1]))
+	return p64
 }
-
-
 
 func output(sp *StatePlane, outputfile string) {
 	outputJson, err := os.Create(outputfile)
@@ -323,7 +318,6 @@ type Index2 struct {
 	Diff float64
 }
 
-
 func dvizMaster2(states *[]State) [][]float64 {
 	//get state array
 	var length = len(*states) - 1
@@ -359,23 +353,22 @@ func dvizMaster2(states *[]State) [][]float64 {
 
 	logger.Debugf("Total xor computations: %d\n", total)
 	return plane
-    
-    return nil
-}
 
+	return nil
+}
 
 func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
 	for true {
 		index := <-input
 		var runningDistance int64
 		var dVar int64
-        for i := range (*states)[index.X].Points {
-            for j := range (*states)[index.X].Points[i].Dump {
-                if len((*states)[index.Y].Points) != len((*states)[index.X].Points) {
-                    //TODO see if this is systematic if so do len < 1 and dont bother checking
-                    continue
-                }
-                dVar = difference((*states)[index.X].Points[i].Dump[j].Value, (*states)[index.Y].Points[i].Dump[j].Value)
+		for i := range (*states)[index.X].Points {
+			for j := range (*states)[index.X].Points[i].Dump {
+				if len((*states)[index.Y].Points) != len((*states)[index.X].Points) {
+					//TODO see if this is systematic if so do len < 1 and dont bother checking
+					continue
+				}
+				dVar = difference((*states)[index.X].Points[i].Dump[j].Value, (*states)[index.Y].Points[i].Dump[j].Value)
 				runningDistance += dVar * dVar
 				total++
 			}
@@ -384,7 +377,6 @@ func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
 		output <- index
 	}
 }
-
 
 func gnuplotPlane() {
 	f, err := os.Create(render + ".plot")
@@ -396,8 +388,8 @@ func gnuplotPlane() {
 	f.WriteString("set title \"DviZ\"\n")
 	f.WriteString(fmt.Sprintf("plot \"%s.dat\" with points palette, \\\n", render))
 	//f.WriteString(fmt.Sprintf("\t '' using 1:2 w linespoints\n"))
-//plot "default.dat" with points palette, \
-//    '' using 1:2 w linespoints
+	//plot "default.dat" with points palette, \
+	//    '' using 1:2 w linespoints
 
 }
 
@@ -407,7 +399,7 @@ func dat(sp *StatePlane) {
 		logger.Fatal(err)
 	}
 	for i := range (*sp).Points {
-		f.WriteString(fmt.Sprintf("%f %f %d\n", sp.Points[i][0],sp.Points[i][1],sp.States[i].ClusterId))
+		f.WriteString(fmt.Sprintf("%f %f %d\n", sp.Points[i][0], sp.Points[i][1], sp.States[i].ClusterId))
 	}
 }
 
@@ -416,12 +408,12 @@ func renderImage() {
 	if err := cmd.Run(); err != nil {
 		logger.Fatal(err)
 	}
-    /*
-	cmd = exec.Command("display", render+".png")
-	if err := cmd.Run(); err != nil {
-		logger.Fatal(err)
-	}
-    */
+	/*
+		cmd = exec.Command("display", render+".png")
+		if err := cmd.Run(); err != nil {
+			logger.Fatal(err)
+		}
+	*/
 }
 
 func xorGeneral(a, b interface{}) int64 {
@@ -687,36 +679,35 @@ func setupProfiler() {
 }
 
 func ClusterInvariants(sp *StatePlane) {
-    //build daikon files
-    clusterLogs := make([][]logmerger.Point,sp.NumClusters)
-    for i := range sp.States {
-        //bucket clusters of points into seperate files. Merge the points of individual states together.
-        clusterLogs[sp.States[i].ClusterId] = append(clusterLogs[sp.States[i].ClusterId],logmerger.MergePoints(sp.States[i].Points))
-    }
-    //TODO filter based on hosts and variables
-    for i := range clusterLogs {
-        logger.Debug("writing to daikon log")
-        logmerger.WriteToDaikon(clusterLogs[i],fmt.Sprintf("c%d",i))
-    }
-    //execute daikon collect Invariants
-    
-    clusterinvs := make([]map[string]bool,sp.NumClusters)
-    for i := range clusterLogs {
-        cmd := exec.Command("java", "daikon.Daikon",fmt.Sprintf("c%d.dtrace",i))
-        stdoutStderr, err := cmd.CombinedOutput()
-        if err != nil {
-            logger.Fatal(err)
-        }
-        //logger.Debug("%s\n",string(stdoutStderr))
-        clusterinvs[i] = make(map[string]bool)
-        invs := strings.SplitAfter(string(stdoutStderr),"\n")
-        //Avoid the first and last line while building maps, they contain text which is not invaraints
-        for j := 3; j < len(invs)-1;j++{
-            clusterinvs[i][invs[j]]=true
-        }
-        logger.Debug(clusterinvs)
-        //split up invariants into individual lines and store them
-    }
-    
+	//build daikon files
+	clusterLogs := make([][]logmerger.Point, sp.NumClusters)
+	for i := range sp.States {
+		//bucket clusters of points into seperate files. Merge the points of individual states together.
+		clusterLogs[sp.States[i].ClusterId] = append(clusterLogs[sp.States[i].ClusterId], logmerger.MergePoints(sp.States[i].Points))
+	}
+	//TODO filter based on hosts and variables
+	for i := range clusterLogs {
+		logger.Debug("writing to daikon log")
+		logmerger.WriteToDaikon(clusterLogs[i], fmt.Sprintf("c%d", i))
+	}
+	//execute daikon collect Invariants
+
+	clusterinvs := make([]map[string]bool, sp.NumClusters)
+	for i := range clusterLogs {
+		cmd := exec.Command("java", "daikon.Daikon", fmt.Sprintf("c%d.dtrace", i))
+		stdoutStderr, err := cmd.CombinedOutput()
+		if err != nil {
+			logger.Fatal(err)
+		}
+		//logger.Debug("%s\n",string(stdoutStderr))
+		clusterinvs[i] = make(map[string]bool)
+		invs := strings.SplitAfter(string(stdoutStderr), "\n")
+		//Avoid the first and last line while building maps, they contain text which is not invaraints
+		for j := 3; j < len(invs)-1; j++ {
+			clusterinvs[i][invs[j]] = true
+		}
+		logger.Debug(clusterinvs)
+		//split up invariants into individual lines and store them
+	}
+
 }
-    
