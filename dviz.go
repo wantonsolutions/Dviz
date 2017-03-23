@@ -333,52 +333,18 @@ func dvizMaster2(states *[]State) [][]float64 {
 		plane[i] = make([]float64, length)
 	}
 	//launch threads
-	input := make(chan []Index2, runtime.NumCPU())
-	output := make(chan []Index2, runtime.NumCPU())
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go distanceWorker3(states, input, output)
-	}
-	done := false
+	//input := make(chan []Index2, runtime.NumCPU())
+	//output := make(chan []Index2, runtime.NumCPU())
 	outstanding := 0
-	/*
-		go func() {
-			for i := 0; i < length; i++ {
-				for j := i + 1; j < length; j++ {
-					input <- Index2{X: i, Y: j, Diff: 0.0}
-					outstanding++
-				}
-			}
-			done = true
-		}()
-
-		for !done || outstanding > 0 {
-			elem := <-output
-			plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
-			outstanding--
-		}
-	*/
-	cpu := runtime.NumCPU()
-	indexArr := make([][]Index2, cpu)
-	thread := 0
-	for i := 0; i < length; i++ {
-		for j := i + 1; j < length; j++ {
-			indexArr[thread] = append(indexArr[thread], Index2{X: i, Y: j, Diff: 0.0})
-			thread = (thread + 1) % cpu
-		}
+	output := make(chan bool, runtime.NumCPU())
+	for i := 0; i < runtime.NumCPU(); i++ {
+		//go distanceWorker3(states, input, output)
+		outstanding++
+		go distanceWorker4(states, &plane, i, runtime.NumCPU(), output)
 	}
-	go func() {
-		for i := range indexArr {
-			outstanding++
-			input <- indexArr[i]
-			done = true
-		}
-	}()
 
-	for !done || outstanding > 0 {
-		arr := <-output
-		for i := range arr {
-			plane[arr[i].X][arr[i].Y], plane[arr[i].Y][arr[i].X] = arr[i].Diff, arr[i].Diff
-		}
+	for outstanding > 0 {
+		<-output
 		outstanding--
 	}
 
@@ -430,6 +396,37 @@ func distanceWorker3(states *[]State, input chan []Index2, output chan []Index2)
 		}
 		output <- indexA
 	}
+}
+
+func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, output chan bool) {
+	var runningDistance int64
+	var dVar int64
+	var length = len(*states) - 1
+	var count = -1
+	var diff float64
+	for x := 0; x < length; x++ {
+		for y := x + 1; y < length; y++ {
+			count = (count + 1) % threads
+			if count != id {
+				continue
+			}
+			for i := range (*states)[x].Points {
+				for j := range (*states)[x].Points[i].Dump {
+					if len((*states)[y].Points) != len((*states)[y].Points) {
+						//TODO see if this is systematic if so do len < 1 and dont bother checking
+						continue
+					}
+					//logger.Debugf("len states %d x %d y %d\n", length, x, y)
+					dVar = difference((*states)[x].Points[i].Dump[j].Value, (*states)[y].Points[i].Dump[j].Value)
+					runningDistance += dVar * dVar
+					//total++
+				}
+				diff = math.Sqrt(float64(runningDistance))
+				(*plane)[x][y], (*plane)[y][x] = diff, diff
+			}
+		}
+	}
+	output <- true
 }
 
 func gnuplotPlane() {
