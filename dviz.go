@@ -138,21 +138,22 @@ func executeFile() {
 		logger.Fatal(err)
 	}
 	states := decodeAndCorrect(jsonFile)
-	plane := dviz(states)
-	//TODO come up with a proper naming scheme
-	output(plane, *outputfile)
-	logger.Debugf("target misses %d\n", targetMisses)
-	logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
-
-	//plot the single dimension version
-
+	dviz(states)
 	/*
-		if *draw {
-			render = "default"
-			dat(plane)
-			gnuplotPlane()
-			renderImage()
-		}
+		plane := dviz(states)
+		//TODO come up with a proper naming scheme
+		output(plane, *outputfile)
+		logger.Debugf("target misses %d\n", targetMisses)
+		logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
+
+		//plot the single dimension version
+
+			if *draw {
+				render = "default"
+				dat(plane)
+				gnuplotPlane()
+				renderImage()
+			}
 	*/
 
 }
