@@ -146,12 +146,14 @@ func executeFile() {
 
 	//plot the single dimension version
 
-	if *draw {
-		render = "default"
-		dat(plane)
-		gnuplotPlane()
-		renderImage()
-	}
+	/*
+		if *draw {
+			render = "default"
+			dat(plane)
+			gnuplotPlane()
+			renderImage()
+		}
+	*/
 
 }
 
@@ -373,7 +375,7 @@ func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
 				}
 				dVar = difference((*states)[index.X].Points[i].Dump[j].Value, (*states)[index.Y].Points[i].Dump[j].Value)
 				runningDistance += dVar * dVar
-				total++
+				//total++
 			}
 		}
 		index.Diff = math.Sqrt(float64(runningDistance))
