@@ -333,27 +333,52 @@ func dvizMaster2(states *[]State) [][]float64 {
 		plane[i] = make([]float64, length)
 	}
 	//launch threads
-	input := make(chan Index2, 1000)
-	output := make(chan Index2, 1000)
+	input := make(chan []Index2, runtime.NumCPU())
+	output := make(chan []Index2, runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
-		go distanceWorker2(states, input, output)
+		go distanceWorker3(states, input, output)
 	}
 	done := false
 	outstanding := 0
-
-	go func() {
-		for i := 0; i < length; i++ {
-			for j := i + 1; j < length; j++ {
-				input <- Index2{X: i, Y: j, Diff: 0.0}
-				outstanding++
+	/*
+		go func() {
+			for i := 0; i < length; i++ {
+				for j := i + 1; j < length; j++ {
+					input <- Index2{X: i, Y: j, Diff: 0.0}
+					outstanding++
+				}
 			}
+			done = true
+		}()
+
+		for !done || outstanding > 0 {
+			elem := <-output
+			plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
+			outstanding--
 		}
-		done = true
+	*/
+	cpu := runtime.NumCPU()
+	indexArr := make([][]Index2, cpu)
+	thread := 0
+	for i := 0; i < length; i++ {
+		for j := i + 1; j < length; j++ {
+			indexArr[thread] = append(indexArr[thread], Index2{X: i, Y: j, Diff: 0.0})
+			thread = (thread + 1) % cpu
+		}
+	}
+	go func() {
+		for i := range indexArr {
+			outstanding++
+			input <- indexArr[i]
+			done = true
+		}
 	}()
 
 	for !done || outstanding > 0 {
-		elem := <-output
-		plane[elem.X][elem.Y], plane[elem.Y][elem.X] = elem.Diff, elem.Diff
+		arr := <-output
+		for i := range arr {
+			plane[arr[i].X][arr[i].Y], plane[arr[i].Y][arr[i].X] = arr[i].Diff, arr[i].Diff
+		}
 		outstanding--
 	}
 
@@ -381,6 +406,29 @@ func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
 		}
 		index.Diff = math.Sqrt(float64(runningDistance))
 		output <- index
+	}
+}
+
+func distanceWorker3(states *[]State, input chan []Index2, output chan []Index2) {
+	for true {
+		indexA := <-input
+		var runningDistance int64
+		var dVar int64
+		for e := range indexA {
+			for i := range (*states)[indexA[e].X].Points {
+				for j := range (*states)[indexA[e].X].Points[i].Dump {
+					if len((*states)[indexA[e].Y].Points) != len((*states)[indexA[e].X].Points) {
+						//TODO see if this is systematic if so do len < 1 and dont bother checking
+						continue
+					}
+					dVar = difference((*states)[indexA[e].X].Points[i].Dump[j].Value, (*states)[indexA[e].Y].Points[i].Dump[j].Value)
+					runningDistance += dVar * dVar
+					//total++
+				}
+			}
+			indexA[e].Diff = math.Sqrt(float64(runningDistance))
+		}
+		output <- indexA
 	}
 }
 
