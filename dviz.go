@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"runtime"
 	"runtime/pprof"
 
+	"github.com/bobhancock/goxmeans"
 	logging "github.com/op/go-logging"
 	"github.com/sacado/tsne4go"
 	//"encoding/gob"
 	"bytes"
 	"fmt"
-	"math"
 	"math/big"
 	"os/exec"
 	"regexp"
@@ -48,7 +49,6 @@ var (
 
 	difference   func(a, b interface{}) int64
 	render       string
-	total        int
 	targetMisses int
 	badTesting   = false
 )
@@ -138,23 +138,22 @@ func executeFile() {
 		logger.Fatal(err)
 	}
 	states := decodeAndCorrect(jsonFile)
-	dviz(states)
-	/*
-		plane := dviz(states)
-		//TODO come up with a proper naming scheme
-		output(plane, *outputfile)
-		logger.Debugf("target misses %d\n", targetMisses)
-		logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
+	//dviz(states)
+	plane := dviz(states)
+	//TODO come up with a proper naming scheme
+	//TODO output file
+	//output(plane, *outputfile)
+	logger.Debugf("target misses %d\n", targetMisses)
+	//logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
 
-		//plot the single dimension version
+	//plot the single dimension version
 
-			if *draw {
-				render = "default"
-				dat(plane)
-				gnuplotPlane()
-				renderImage()
-			}
-	*/
+	if *draw {
+		render = "default"
+		dat(plane)
+		gnuplotPlane()
+		renderImage()
+	}
 
 }
 
@@ -182,84 +181,83 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 func dviz(states []State) *StatePlane {
 	dplane := dvizMaster2(&states)
 	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point, 0)}
-	/*
-		tsne := tsne4go.New(sp, nil)
-		for i := 0; i < *tsneItt; i++ {
-			tsne.Step()
-			//logger.Debugf("cost %d", cost)
-		}
-		tsne.NormalizeSolution()
-		s := tsne.Solution
-		//logger.Debugf("%d", s[0][0])
-		for i := 0; i < len(s); i++ {
-			logger.Debugf("point: %g %g", s[i][0], s[i][1])
-		}
-		sp.Points = s
+	//TODO remove this
+	return &sp
 
-		//Entry point for goXmeans
-		f, err := os.Create("goxmeans.input")
-		if err != nil {
-			logger.Fatal(err)
-		}
-		for i := range sp.Points {
-			//fmt.Printf("to write %g",sp.Points[i][0])
-			f.WriteString(fmt.Sprintf("%g,%g\n", sp.Points[i][0], sp.Points[i][1]))
-		}
-		//copy paste goXmeans
-		data, err := goxmeans.Load("goxmeans.input", ",")
-		if err != nil {
-			logger.Fatalf("Load: ", err)
-		}
-		fmt.Println("Load complete")
+	tsne := tsne4go.New(sp, nil)
+	for i := 0; i < *tsneItt; i++ {
+		tsne.Step()
+		//logger.Debugf("cost %d", cost)
+	}
+	tsne.NormalizeSolution()
+	s := tsne.Solution
+	//logger.Debugf("%d", s[0][0])
+	sp.Points = s
 
-		var k = 2
-		var kmax = 6
-		// Type of data measurement between points.
-		var measurer goxmeans.EuclidDist
-		// How to select your initial centroids.
-		var cc goxmeans.DataCentroids
-		// How to select centroids for bisection.
-		bisectcc := goxmeans.EllipseCentroids{1.0}
-		// Initial matrix of centroids to use
-		centroids := cc.ChooseCentroids(data, k)
-		models, errs := goxmeans.Xmeans(data, centroids, k, kmax, cc, bisectcc, measurer)
-		if len(errs) > 0 {
-			for k, v := range errs {
-				fmt.Printf("%s: %v\n", k, v)
-			}
-		}
-		// Find and display the best model
-		bestbic := math.Inf(-1)
-		bestidx := 0
-		for i, m := range models {
-			if m.Bic > bestbic {
-				bestbic = m.Bic
-				bestidx = i
-			}
-			logger.Debugf("%d: #centroids=%d BIC=%f\n", i, m.Numcentroids(), m.Bic)
-		}
-		logger.Debugf("\nBest fit:[ %d: #centroids=%d BIC=%f]\n", bestidx, models[bestidx].Numcentroids(), models[bestidx].Bic)
-		bestm := models[bestidx]
-		sp.NumClusters = len(bestm.Clusters)
-		for i, c := range bestm.Clusters {
-			logger.Debugf("cluster-%d: numpoints=%d variance=%f\n", i, c.Numpoints(), c.Variance)
-			//logger.Debugf("%s",c.Points.String())
-		}
+	//Entry point for goXmeans
+	f, err := os.Create("goxmeans.input")
+	if err != nil {
+		logger.Fatal(err)
+	}
+	for i := range sp.Points {
+		//fmt.Printf("to write %g",sp.Points[i][0])
+		f.WriteString(fmt.Sprintf("%g,%g\n", sp.Points[i][0], sp.Points[i][1]))
+	}
+	//copy paste goXmeans
+	data, err := goxmeans.Load("goxmeans.input", ",")
+	if err != nil {
+		logger.Fatalf("Load: ", err)
+	}
+	fmt.Println("Load complete")
 
-		clusterMap := make(map[tsne4go.Point]int, 0)
-		for i, c := range bestm.Clusters {
-			for j := 0; j < c.Points.Rows(); j++ {
-				x, y := c.Points.Get(j, 0), c.Points.Get(j, 1)
-				clusterMap[tsne4go.Point{x, y}] = i
-			}
+	var k = 2
+	var kmax = 6
+	// Type of data measurement between points.
+	var measurer goxmeans.EuclidDist
+	// How to select your initial centroids.
+	var cc goxmeans.DataCentroids
+	// How to select centroids for bisection.
+	bisectcc := goxmeans.EllipseCentroids{1.0}
+	// Initial matrix of centroids to use
+	centroids := cc.ChooseCentroids(data, k)
+	models, errs := goxmeans.Xmeans(data, centroids, k, kmax, cc, bisectcc, measurer)
+	if len(errs) > 0 {
+		for k, v := range errs {
+			fmt.Printf("%s: %v\n", k, v)
 		}
-
-		for i, point := range sp.Points {
-			sp.States[i].ClusterId = clusterMap[point]
+	}
+	// Find and display the best model
+	bestbic := math.Inf(-1)
+	bestidx := 0
+	for i, m := range models {
+		if m.Bic > bestbic {
+			bestbic = m.Bic
+			bestidx = i
 		}
+		logger.Debugf("%d: #centroids=%d BIC=%f\n", i, m.Numcentroids(), m.Bic)
+	}
+	logger.Debugf("\nBest fit:[ %d: #centroids=%d BIC=%f]\n", bestidx, models[bestidx].Numcentroids(), models[bestidx].Bic)
+	bestm := models[bestidx]
+	sp.NumClusters = len(bestm.Clusters)
+	for i, c := range bestm.Clusters {
+		logger.Debugf("cluster-%d: numpoints=%d variance=%f\n", i, c.Numpoints(), c.Variance)
+		//logger.Debugf("%s",c.Points.String())
+	}
 
-		ClusterInvariants(&sp)
-	*/
+	clusterMap := make(map[tsne4go.Point]int, 0)
+	for i, c := range bestm.Clusters {
+		for j := 0; j < c.Points.Rows(); j++ {
+			x, y := c.Points.Get(j, 0), c.Points.Get(j, 1)
+			clusterMap[tsne4go.Point{x, y}] = i
+		}
+	}
+
+	for i, point := range sp.Points {
+		sp.States[i].ClusterId = clusterMap[point]
+	}
+
+	//ClusterInvariants(&sp)
+
 	return &sp
 }
 
@@ -336,15 +334,16 @@ func dvizMaster2(states *[]State) [][]float64 {
 	//input := make(chan []Index2, runtime.NumCPU())
 	//output := make(chan []Index2, runtime.NumCPU())
 	outstanding := 0
-	output := make(chan bool, runtime.NumCPU())
-	for i := 0; i < 1; i++ {
+	total := 0
+	output := make(chan int, runtime.NumCPU())
+	for i := 0; i < runtime.NumCPU(); i++ {
 		//go distanceWorker3(states, input, output)
 		outstanding++
 		go distanceWorker4(states, &plane, i, runtime.NumCPU(), output)
 	}
 
 	for outstanding > 0 {
-		<-output
+		total += <-output
 		outstanding--
 	}
 
@@ -354,35 +353,41 @@ func dvizMaster2(states *[]State) [][]float64 {
 	return nil
 }
 
-func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, output chan bool) {
+func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, output chan int) {
 	var runningDistance int64
 	var dVar int64
 	var length = len(*states) - 1
-	var count = -1
+	//var count = -1
 	var diff float64
-	for x := 0; x < length; x++ {
+	var total int
+	for x := id; x < length; x += threads {
+		//for x := 0; x < length; x++ {
+
 		for y := x + 1; y < length; y++ {
-			count = (count + 1) % threads
-			if count != id {
-				continue
-			}
+			//count = (count + 1) % threads
+			//if count != id {
+			//	continue
+			//}
+			//logger.Debugf("id: %d x: %d y:%d", id, x, y)
 			for i := range (*states)[x].Points {
 				for j := range (*states)[x].Points[i].Dump {
-					if len((*states)[y].Points) != len((*states)[y].Points) {
+					if len((*states)[x].Points) != len((*states)[y].Points) {
 						//TODO see if this is systematic if so do len < 1 and dont bother checking
 						continue
 					}
-					//logger.Debugf("len states %d x %d y %d\n", length, x, y)
 					dVar = difference((*states)[x].Points[i].Dump[j].Value, (*states)[y].Points[i].Dump[j].Value)
 					runningDistance += dVar * dVar
-					//total++
+					total++
 				}
-				diff = math.Sqrt(float64(runningDistance))
-				(*plane)[x][y], (*plane)[y][x] = diff, diff
 			}
+			diff = math.Sqrt(float64(runningDistance))
+			runningDistance = 0
+			//logger.Debugf("diff %g %d %d", diff, x, y)
+
+			(*plane)[x][y], (*plane)[y][x] = diff, diff
 		}
 	}
-	output <- true
+	output <- total
 }
 
 func gnuplotPlane() {
