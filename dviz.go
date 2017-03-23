@@ -337,7 +337,7 @@ func dvizMaster2(states *[]State) [][]float64 {
 	//output := make(chan []Index2, runtime.NumCPU())
 	outstanding := 0
 	output := make(chan bool, runtime.NumCPU())
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < 1; i++ {
 		//go distanceWorker3(states, input, output)
 		outstanding++
 		go distanceWorker4(states, &plane, i, runtime.NumCPU(), output)
@@ -352,50 +352,6 @@ func dvizMaster2(states *[]State) [][]float64 {
 	return plane
 
 	return nil
-}
-
-func distanceWorker2(states *[]State, input chan Index2, output chan Index2) {
-	for true {
-		index := <-input
-		var runningDistance int64
-		var dVar int64
-		for i := range (*states)[index.X].Points {
-			for j := range (*states)[index.X].Points[i].Dump {
-				if len((*states)[index.Y].Points) != len((*states)[index.X].Points) {
-					//TODO see if this is systematic if so do len < 1 and dont bother checking
-					continue
-				}
-				dVar = difference((*states)[index.X].Points[i].Dump[j].Value, (*states)[index.Y].Points[i].Dump[j].Value)
-				runningDistance += dVar * dVar
-				//total++
-			}
-		}
-		index.Diff = math.Sqrt(float64(runningDistance))
-		output <- index
-	}
-}
-
-func distanceWorker3(states *[]State, input chan []Index2, output chan []Index2) {
-	for true {
-		indexA := <-input
-		var runningDistance int64
-		var dVar int64
-		for e := range indexA {
-			for i := range (*states)[indexA[e].X].Points {
-				for j := range (*states)[indexA[e].X].Points[i].Dump {
-					if len((*states)[indexA[e].Y].Points) != len((*states)[indexA[e].X].Points) {
-						//TODO see if this is systematic if so do len < 1 and dont bother checking
-						continue
-					}
-					dVar = difference((*states)[indexA[e].X].Points[i].Dump[j].Value, (*states)[indexA[e].Y].Points[i].Dump[j].Value)
-					runningDistance += dVar * dVar
-					//total++
-				}
-			}
-			indexA[e].Diff = math.Sqrt(float64(runningDistance))
-		}
-		output <- indexA
-	}
 }
 
 func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, output chan bool) {
