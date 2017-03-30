@@ -141,8 +141,7 @@ func executeFile() {
 	//dviz(states)
 	plane := dviz(states)
 	//TODO come up with a proper naming scheme
-	//TODO output file
-	//output(plane, *outputfile)
+	output(plane, *outputfile)
 	logger.Debugf("target misses %d\n", targetMisses)
 	//logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
 
@@ -181,12 +180,10 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 func dviz(states []State) *StatePlane {
 	dplane := dvizMaster2(&states)
 	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point, 0)}
-	//TODO remove this
-	return &sp
 
 	tsne := tsne4go.New(sp, nil)
 	for i := 0; i < *tsneItt; i++ {
-		tsne.Step()
+		tsne.Step2()
 		//logger.Debugf("cost %d", cost)
 	}
 	tsne.NormalizeSolution()
@@ -330,14 +327,10 @@ func dvizMaster2(states *[]State) [][]float64 {
 	for i := 0; i < length; i++ {
 		plane[i] = make([]float64, length)
 	}
-	//launch threads
-	//input := make(chan []Index2, runtime.NumCPU())
-	//output := make(chan []Index2, runtime.NumCPU())
 	outstanding := 0
 	total := 0
 	output := make(chan int, runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
-		//go distanceWorker3(states, input, output)
 		outstanding++
 		go distanceWorker4(states, &plane, i, runtime.NumCPU(), output)
 	}
@@ -361,14 +354,7 @@ func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, outpu
 	var diff float64
 	var total int
 	for x := id; x < length; x += threads {
-		//for x := 0; x < length; x++ {
-
 		for y := x + 1; y < length; y++ {
-			//count = (count + 1) % threads
-			//if count != id {
-			//	continue
-			//}
-			//logger.Debugf("id: %d x: %d y:%d", id, x, y)
 			for i := range (*states)[x].Points {
 				for j := range (*states)[x].Points[i].Dump {
 					if len((*states)[x].Points) != len((*states)[y].Points) {
@@ -382,8 +368,6 @@ func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, outpu
 			}
 			diff = math.Sqrt(float64(runningDistance))
 			runningDistance = 0
-			//logger.Debugf("diff %g %d %d", diff, x, y)
-
 			(*plane)[x][y], (*plane)[y][x] = diff, diff
 		}
 	}
@@ -399,7 +383,7 @@ func gnuplotPlane() {
 	f.WriteString("set output \"" + render + ".pdf\"\n")
 	f.WriteString("set title \"DviZ\"\n")
 	f.WriteString(fmt.Sprintf("plot \"%s.dat\" with points palette, \\\n", render))
-	//f.WriteString(fmt.Sprintf("\t '' using 1:2 w linespoints\n"))
+	f.WriteString(fmt.Sprintf("\t '' using 1:2 w linespoints\n"))
 	//plot "default.dat" with points palette, \
 	//    '' using 1:2 w linespoints
 
@@ -445,7 +429,6 @@ func xorGeneral(a, b interface{}) int64 {
 	}
 	bbytes := buf.Bytes()
 
-	//logger.Printf("%s %s\n",abytes,bbytes)
 	var xorDiff int64
 	var i int
 	for i = 0; i < len(abytes) && i < len(bbytes); i++ {

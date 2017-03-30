@@ -29,16 +29,16 @@ echo "$1, ${DATE}" >> time.out
 
 #local
 #(/usr/bin/time -f'%E' Dviz -ll=0 -file=$input) &>> time.out
-#for (( i=1; i<1000 ; i+=100 ))
-#do
+for (( i=1; i<1000 ; i+=50 ))
+do
     #echo $i
-    #/usr/bin/time -f'%E' ./Dviz $fast  -ll=7 -d -itt=$i -file=$input
-    /usr/bin/time -f'%E' ./Dviz $fast  -ll=7 -d -file=$input
+    /usr/bin/time -f'%E' ./Dviz $fast  -ll=7 -d -itt=$i -file=$input
+    #/usr/bin/time -f'%E' ./Dviz $fast -ll=7 -d -file=$input
     #./Dviz -ll=0 -file=$input $fast -cpuprofile cpu.prof -memprofile mem.prof
     #./Dviz -ll=0 -file=$input $fast -memprofile mem.prof
     cmp --silent output.json output-old.json || echo "files are different"
     evince default.pdf
-#done
+done
 
 #tail time.out
 
