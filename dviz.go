@@ -71,6 +71,7 @@ type Cluster struct {
 type StatePlane struct {
 	States      []State
 	Plane       [][]float64
+	VarDiff     [][]map[string]int64
 	Points      []tsne4go.Point
 	NumClusters int
 }
@@ -190,8 +191,8 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 }
 
 func dviz(states []State) *Response {
-	dplane := dvizMaster2(&states)
-	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point, 0)}
+	dplane, vdiff := dvizMaster2(&states)
+	sp := StatePlane{States: states, Plane: dplane, VarDiff: vdiff, Points: make([]tsne4go.Point, 0)}
 
 	tsne := tsne4go.New(sp, nil)
 	for i := 0; i < *tsneItt; i++ {
@@ -333,20 +334,31 @@ type Index2 struct {
 	Diff float64
 }
 
-func dvizMaster2(states *[]State) [][]float64 {
+func dvizMaster2(states *[]State) ([][]float64, [][]map[string]int64) {
 	//get state array
 	var length = len(*states) - 1
+	var totalVars int
+	for i := 0; i < len((*states)[0].Points); i++ {
+		totalVars += len((*states)[0].Points[i].Dump)
+	}
+
 	//real algorithm starts here
 	plane := make([][]float64, length)
+	vdiff := make([][]map[string]int64, length)
 	for i := 0; i < length; i++ {
 		plane[i] = make([]float64, length)
+		vdiff[i] = make([]map[string]int64, length)
+		for j := 0; j < length; j++ {
+			vdiff[i][j] = make(map[string]int64, totalVars)
+		}
 	}
+
 	outstanding := 0
 	total := 0
 	output := make(chan int, runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
 		outstanding++
-		go distanceWorker4(states, &plane, i, runtime.NumCPU(), output)
+		go distanceWorker4(states, &plane, &vdiff, i, runtime.NumCPU(), output)
 	}
 
 	for outstanding > 0 {
@@ -355,12 +367,11 @@ func dvizMaster2(states *[]State) [][]float64 {
 	}
 
 	logger.Debugf("Total xor computations: %d\n", total)
-	return plane
+	return plane, vdiff
 
-	return nil
 }
 
-func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, output chan int) {
+func distanceWorker4(states *[]State, plane *[][]float64, vdiff *[][]map[string]int64, id, threads int, output chan int) {
 	var runningDistance int64
 	var dVar int64
 	var length = len(*states) - 1
@@ -376,6 +387,9 @@ func distanceWorker4(states *[]State, plane *[][]float64, id, threads int, outpu
 						continue
 					}
 					dVar = difference((*states)[x].Points[i].Dump[j].Value, (*states)[y].Points[i].Dump[j].Value)
+					if dVar > 0 {
+						(*vdiff)[x][y][(*states)[x].Points[i].Dump[j].VarName], (*vdiff)[y][x][(*states)[x].Points[i].Dump[j].VarName] = dVar, dVar
+					}
 					runningDistance += dVar * dVar
 					total++
 				}
@@ -760,6 +774,8 @@ func ClusterInvariants(sp *StatePlane) []Cluster {
 			clusters[i].UniqueInvariants = append(clusters[i].UniqueInvariants, inv)
 			fmt.Println(inv)
 		}
+
+		//removeTmp(len(clusters))
 		fmt.Println()
 	}
 
@@ -800,4 +816,22 @@ func diffViolated(filename string) map[string]bool {
 
 	return uniqueInvMap
 
+}
+
+func removeTmp(numClusters int) {
+	var err error
+	for i := 0; i < numClusters; i++ {
+		err = os.Remove(fmt.Sprintf("c%d.diff", i))
+		if err != nil {
+			logger.Criticalf("Unble to remove diff file c%d.diff", i)
+		}
+		err = os.Remove(fmt.Sprintf("c%d.inv.gz", i))
+		if err != nil {
+			logger.Criticalf("Unble to remove daikon invariant file c%d.inv.gz", i)
+		}
+		err = os.Remove(fmt.Sprintf("c%d.dtrace", i))
+		if err != nil {
+			logger.Criticalf("Unble to remove trace file c%d.dtrace", i)
+		}
+	}
 }
