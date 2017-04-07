@@ -2,6 +2,7 @@ package main
 
 import (
 	//	"encoding/gob"
+	"bufio"
 	"encoding/json"
 	"flag"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/bobhancock/goxmeans"
 	logging "github.com/op/go-logging"
@@ -20,7 +22,6 @@ import (
 	"math/big"
 	"os/exec"
 	"regexp"
-	"strings"
 
 	"bitbucket.org/bestchai/dinv/logmerger"
 )
@@ -54,6 +55,17 @@ var (
 )
 
 type Query struct {
+}
+
+type Response struct {
+	Clusters []Cluster
+	Plane    StatePlane
+}
+
+type Cluster struct {
+	Invariants       []string
+	UniqueInvariants []string
+	States           []int //these just point to states in the state plane
 }
 
 type StatePlane struct {
@@ -139,9 +151,9 @@ func executeFile() {
 	}
 	states := decodeAndCorrect(jsonFile)
 	//dviz(states)
-	plane := dviz(states)
+	resp := dviz(states)
 	//TODO come up with a proper naming scheme
-	output(plane, *outputfile)
+	output(resp, *outputfile)
 	logger.Debugf("target misses %d\n", targetMisses)
 	//logger.Debugf("target ration %f\n", float32(targetMisses)/float32(total))
 
@@ -149,7 +161,7 @@ func executeFile() {
 
 	if *draw {
 		render = "default"
-		dat(plane)
+		dat(&(resp.Plane))
 		gnuplotPlane()
 		renderImage()
 	}
@@ -177,13 +189,14 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 	return states
 }
 
-func dviz(states []State) *StatePlane {
+func dviz(states []State) *Response {
 	dplane := dvizMaster2(&states)
 	sp := StatePlane{States: states, Plane: dplane, Points: make([]tsne4go.Point, 0)}
 
 	tsne := tsne4go.New(sp, nil)
 	for i := 0; i < *tsneItt; i++ {
-		tsne.Step2()
+		tsne.Step()
+		//tsne.Step2() //Parallel step
 		//logger.Debugf("cost %d", cost)
 	}
 	tsne.NormalizeSolution()
@@ -253,9 +266,10 @@ func dviz(states []State) *StatePlane {
 		sp.States[i].ClusterId = clusterMap[point]
 	}
 
-	//ClusterInvariants(&sp)
+	clusters := ClusterInvariants(&sp)
 
-	return &sp
+	resp := Response{Clusters: clusters, Plane: sp}
+	return &resp
 }
 
 func trim64point(p64 tsne4go.Point) tsne4go.Point {
@@ -263,13 +277,13 @@ func trim64point(p64 tsne4go.Point) tsne4go.Point {
 	return p64
 }
 
-func output(sp *StatePlane, outputfile string) {
+func output(resp *Response, outputfile string) {
 	outputJson, err := os.Create(outputfile)
 	if err != nil {
 		logger.Fatal(err)
 	}
 	enc := json.NewEncoder(outputJson)
-	enc.Encode(*sp)
+	enc.Encode(*resp)
 }
 
 func parseVariables1(name string) (string, string) {
@@ -673,12 +687,15 @@ func setupProfiler() {
 	}
 }
 
-func ClusterInvariants(sp *StatePlane) {
+func ClusterInvariants(sp *StatePlane) []Cluster {
 	//build daikon files
 	clusterLogs := make([][]logmerger.Point, sp.NumClusters)
+	clusters := make([]Cluster, sp.NumClusters)
 	for i := range sp.States {
 		//bucket clusters of points into seperate files. Merge the points of individual states together.
 		clusterLogs[sp.States[i].ClusterId] = append(clusterLogs[sp.States[i].ClusterId], logmerger.MergePoints(sp.States[i].Points))
+		//label clusters with state index for back reference
+		clusters[sp.States[i].ClusterId].States = append(clusters[sp.States[i].ClusterId].States, i)
 	}
 	//TODO filter based on hosts and variables
 	for i := range clusterLogs {
@@ -686,8 +703,6 @@ func ClusterInvariants(sp *StatePlane) {
 		logmerger.WriteToDaikon(clusterLogs[i], fmt.Sprintf("c%d", i))
 	}
 	//execute daikon collect Invariants
-
-	clusterinvs := make([]map[string]bool, sp.NumClusters)
 	for i := range clusterLogs {
 		cmd := exec.Command("java", "daikon.Daikon", fmt.Sprintf("c%d.dtrace", i))
 		stdoutStderr, err := cmd.CombinedOutput()
@@ -695,14 +710,94 @@ func ClusterInvariants(sp *StatePlane) {
 			logger.Fatal(err)
 		}
 		//logger.Debug("%s\n",string(stdoutStderr))
-		clusterinvs[i] = make(map[string]bool)
 		invs := strings.SplitAfter(string(stdoutStderr), "\n")
 		//Avoid the first and last line while building maps, they contain text which is not invaraints
-		for j := 3; j < len(invs)-1; j++ {
-			clusterinvs[i][invs[j]] = true
+		for j := 5; j < len(invs)-2; j++ {
+			clusters[i].Invariants = append(clusters[i].Invariants, invs[j])
 		}
-		logger.Debug(clusterinvs)
+		logger.Debug(clusters[i].Invariants)
 		//split up invariants into individual lines and store them
 	}
+
+	//Calculate unique invariants
+	for i := range clusters {
+		intersection := make(map[string]bool)
+		bootstrapedIntersection := false
+		for j := range clusters {
+			if i == j {
+				continue
+			}
+			clusterArgs := make([]string, 0)
+			clusterArgs = append(clusterArgs, fmt.Sprintf("daikon.tools.InvariantChecker"))
+			clusterArgs = append(clusterArgs, "--verbose")
+			clusterArgs = append(clusterArgs, "--output")
+			clusterArgs = append(clusterArgs, fmt.Sprintf("c%d.diff", i))
+			clusterArgs = append(clusterArgs, fmt.Sprintf("c%d.inv.gz", i))
+			clusterArgs = append(clusterArgs, fmt.Sprintf("c%d.dtrace", j))
+
+			//fmt.Sprintf("%s", clusterArgs)
+			//logger.Infof("%s", clusterArgs)
+			cmd := exec.Command("java", clusterArgs...)
+			stdoutStderr, err := cmd.CombinedOutput()
+			//fmt.Println(string(stdoutStderr))
+			if err != nil {
+				logger.Fatalf("%s:%s", stdoutStderr, err)
+			}
+			unique := diffViolated(fmt.Sprintf("c%d.diff", i))
+			if !bootstrapedIntersection {
+				intersection = unique
+				bootstrapedIntersection = true
+			} else {
+				for inv := range intersection {
+					if _, ok := unique[inv]; !ok {
+						//logger.Infof("deleting %s\n", inv)
+						delete(intersection, inv)
+					}
+				}
+			}
+		}
+		for inv := range intersection {
+			clusters[i].UniqueInvariants = append(clusters[i].UniqueInvariants, inv)
+			fmt.Println(inv)
+		}
+		fmt.Println()
+	}
+
+	return clusters
+}
+
+func diffViolated(filename string) map[string]bool {
+	//Now grab the unique invariants from the generated file
+	diffFile, err := os.Open(filename)
+	if err != nil {
+		logger.Criticalf("Unable to open diff file after writing. Was there no difference between clusters?: %s", err.Error())
+	}
+	defer diffFile.Close()
+
+	scanner := bufio.NewScanner(diffFile)
+	start, end := 0, 0
+	uniqueInvMap := make(map[string]bool, 0)
+	for scanner.Scan() {
+		start, end = 0, 0
+		found := false
+		raw := scanner.Text()
+		for j := 0; j < len(raw); j++ {
+			if raw[j] == '\'' {
+				if !found {
+					start = j
+					found = true
+				} else {
+					end = j
+				}
+			}
+		}
+		uniqueInvMap[raw[start+1:end]] = true
+	}
+	//fmt.Printf("start %d, end %d", start, end)
+	//for inv := range uniqueInvMap {
+	//	fmt.Println(inv)
+	//}
+
+	return uniqueInvMap
 
 }
