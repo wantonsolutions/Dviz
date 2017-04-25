@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/bobhancock/goxmeans"
 	logging "github.com/op/go-logging"
@@ -38,6 +40,7 @@ var (
 	)
 	serverMode = flag.Bool("s", false, "launch in server mode Port 3119")
 	port       = flag.String("p", "3119", "server listening port")
+	fport      = flag.String("fp", "3118", "file serving port")
 	loglevel   = flag.Int("ll", 0, "log level 5:Debug 4:Info 3:Notice 2:Warning 1:Error 0:Critical")
 	fast       = flag.Bool("fast", false, "fast drops general structures like maps for the sake of speed")
 	filename   = flag.String("file", "", "filename: file must be json dinv output")
@@ -96,11 +99,31 @@ func (sp StatePlane) Distance(i, j int) float64 { return sp.Plane[i][j] }
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	logger.Infof("Received Request from %s", r.Host)
+	logger.Infof("NICE WE GOT IT")
 	states := decodeAndCorrect(r.Body)
 	dplane := dviz(states)
 	//buf, err := ioutil.ReadFile("." + r.URL.Path + "/index.html")
 	enc := json.NewEncoder(w)
 	enc.Encode(dplane)
+}
+
+func filehandler(w http.ResponseWriter, r *http.Request) {
+	logger.Infof("Received File Request %s", r.Host)
+	defaultJson, err := ioutil.ReadFile(*filename)
+	if err != nil {
+		logger.Debugf("File not found: %s", *filename)
+		w.WriteHeader(404)
+		w.Write([]byte("File not found"))
+	}
+	h := w.Header()
+	h.Add("Access-Control-Allow-Origin", "*")
+	h.Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(defaultJson)
+	//enc := json.NewEncoder(w)
+	//enc.Encode(defaultJson)
+	logger.Debugf("File Written %s\n%s", *filename, string(defaultJson))
+
 }
 
 func main() {
@@ -127,6 +150,7 @@ func main() {
 
 	if *serverMode {
 		logger.Notice("Starting Dviz Server!")
+		go http.ListenAndServe(":"+*fport, http.HandlerFunc(filehandler))
 		logger.Fatal(http.ListenAndServe(":"+*port, http.HandlerFunc(handler)))
 	} else if *filename != "" {
 		executeFile()
@@ -179,7 +203,7 @@ func decodeAndCorrect(jsonFile io.ReadCloser) []State {
 		var decodedState State
 		err = dec.Decode(&decodedState)
 		if err != nil && err != io.EOF {
-			logger.Fatal(err)
+			logger.Fatal(err, jsonFile)
 		}
 		states = append(states, decodedState)
 	}
@@ -195,11 +219,17 @@ func dviz(states []State) *Response {
 	sp := StatePlane{States: states, Plane: dplane, VarDiff: vdiff, Points: make([]tsne4go.Point, 0)}
 
 	tsne := tsne4go.New(sp, nil)
-	for i := 0; i < *tsneItt; i++ {
-		tsne.Step()
-		//tsne.Step2() //Parallel step
-		//logger.Debugf("cost %d", cost)
+	for k := 0; k < 5; k++ {
+		start := time.Now()
+		for i := 0; i < *tsneItt; i++ {
+			tsne.Step()
+			//tsne.Step2() //Parallel step
+			//logger.Debugf("cost %d", cost)
+		}
+		fmt.Printf("time %f\n", time.Now().Sub(start).Seconds())
 	}
+
+	return nil
 	tsne.NormalizeSolution()
 	s := tsne.Solution
 	//logger.Debugf("%d", s[0][0])
