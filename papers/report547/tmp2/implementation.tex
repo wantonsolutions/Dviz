@@ -2,3 +2,76 @@
 \section{Implementation}
 \label{sec:imp}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textbf{Go Server}
+
+Section~\ref{sec:js2go} describes the shortcomings of JavaScript as a
+fast computational engine, here we describe our migration to a server
+written in Go, along with it's advantages and disadvantages. Our
+initial Node.js server, output precomputed XOR distances, and states
+to a JavaScript client which computed t-SNE and plotted a time curve.
+They communicated requests via HTTP, in JSON format. Our Go server and
+JavaScript client communicate using the same protocol, with the
+exception that XOR distances are not precomputed. The client first
+requests raw, trace data, followed by a request to process the trace,
+and compute t-SNE clustering, and or invariant detection. Our
+decision to server trace data from the server is for the sake of
+extensibility. In the future trace data could be streamed to the
+server directly from an instrumented program, an operation which
+should bypass client functionality.
+
+\textbf{Parallel t-SNE}
+
+T-SNE was implemented in two stages using an architecture similar to
+in memory Map-Reduce. We use a master worker system wherein a master
+schedules treads equal to the number of available cores on a machine,
+and allocates them a range of work. In the case of XOR their work is a
+range of points to compute distances on. XOR distance computation is
+embarrassingly parallel so the master thread simply waits for all
+threads to complete before continuing to t-SNE iterations.
+%
+The four data dependent computations of t-SNE are described in
+Section~\ref{sec:ptsne}, in order to respect data dependencies we
+implemented parallel t-SNE as a 4 stage synchronous pipeline. Worker
+threads are allocated points identically to XOR, and are additionally
+provisioned with communication channels. Workers listen for commands
+on channels, and execute a single state in the 4 state pipeline upon
+request. When complete they single the leader.
+%
+Our implementation is built off of~\cite{tsne4go} and required an
+additional 80 lines of Go to parrallelize.
+
+\textbf{Variable weighting}
+
+Reporting variable weights to our client is simplistic from an
+implementation perspective, but with a few subtle pitfalls when
+implemented practically. Variable differences are calculated during XOR
+computation, collecting variable difference for each variable required
+only a few lines of code change. On our modest size trace of 300
+variable per trace point over 100 points, the size of the difference
+matrix was 75GB, requiring over 8min of transfer time on a local
+machine! Luckily the matrix is sparse, reporting only variable
+differences reduces the matrix to 2GB. Further much of data in the
+matrix is redundant (i.e. variable names) post tar.gz compression our
+matrices averaged 35MB.
+
+\textbf{Cluster Detection}
+
+To detect t-SNE clusters for further processing we leveraged an off
+the shelf k-means clustering library goxmeans~\cite{goxmeans}. Goxmeans
+generates multiple cluster models per data set. In all cases we select
+the clustering model with the highest bayesian information criterion,
+which matches the number of user selected clusters. In our current
+implementation, cluster\# selection has not been integrated into our
+front end visualization, and specified via command line.
+
+\textbf{Daikon and Cluster Invariants}
+
+Logical clusters are fed as input into a Go frontend which executes
+Daikon as a separate process. Cluster invariants are inferred by
+partitioning original traces into sub traces which map to clusters, and
+executing daikon on them. Unique cluster invariants are computed by
+checking each clusters invariants against all others. Unique
+invariants, are invariants which are not present in any other cluster.
+Daikon does not have a Go API and thus the files in the Linux
+operating system are used to coordinate between the two processes.
