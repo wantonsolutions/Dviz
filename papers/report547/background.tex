@@ -1,0 +1,51 @@
+\section{Background}
+\label{sec:background}
+
+
+\noindent{\textbf{Distributed Snapshot}} is an algorithm which
+proposes that consistent distributed state can be captured without
+interfering with the execution of a system itself
+~\cite{dist_snapshots_Chandy1985}.  Distributed snapshots can be
+computed online or mined from a log containing vector clocks which
+provide a partial ordering of events in a
+system~\cite{mattern_vector_clocks_1989}. We consider distributed
+snapshots to be a fundamental granularity for examining consistent
+state. Our state analysis technique is therefore applied at the level
+of a distributed snapshot.
+
+\noindent{\textbf{\dinv}} is a tool which detects likely data
+invariants in distributed systems~\cite{dinv}. \dinv operates by
+instrumenting distributed systems to log system state and vector
+clocks.  Execution logs from the nodes of the system are merged
+together, and the state of the system is reconstructed and output as a
+distributed system trace. \dinv leverages Daikon to automatically
+infer data invariants on the trace.  We plan to use \dinv as a tool
+for capturing distributed state.
+
+\noindent{\textbf{\dviz}} is a visualization tool which plots
+distributed snapshots mined by \dinv onto a 2D plane. The position of
+each snapshot is determined by a XOR distance function. The distance
+between all states are computed and each state is plotted so that a
+the triangular inequality holds for all states. t-SNE clustering is
+used to compute snaphot position~\cite{maaten2008visualizing}. Each
+point is linked by a time curve~\cite{Bach2015timecurves}.Each point
+is also color coded based on their temporal ordering. The first
+snapshot is colored bright red, and the final snapshot is dark brown.
+All intermediate points are colored with linear interpolated
+luminosity. Figure~\ref{fig:put-get-curve} is a \dviz plot generated
+from the execution of the etcd key value store~\cite{etcdraft}. The
+plot was generated from a test execution of 50 put requests followed
+by 50 get requests. Put requests compose the bright red cluster, while
+the dark brown corresponds to Get requests. Initial and final states
+are encoded by encircling them in blue. In its current implementation
+\dviz has no facilities for automatically labling clusters, making
+their significance a mystery to users. Further salient information
+about the similarites and differnce of culster is only atainably
+through the manual inspection of individual states. Labeling each
+cluster with cluster specifc information, and allowing users to query
+features of the graph would help to contextualize the visualization.
+
+\begin{figure}[h]
+    \includegraphics[width=\linewidth]{fig/put-get-curve}%
+    \caption{Time curve, with 2 clusters, generated from an etcd raft cluster processing 50 put requests, followed by 50 get requests.\label{fig:put-get-curve}}%
+\end{figure}

@@ -1,0 +1,109 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction and Motivation}
+\label{sec:intro}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+The complexities of distributed systems have long plagued
+their developers. Writing code which executes on various machines is
+intrinsically more complicated due to networking eccentricities, such as
+failures, partitions, and message delays. Debugging and checking the
+correctness of such systems is laborious and technical, as developers
+must inspect large logs for small discrepancies in expected values, and
+timestamps. At scale auxiliary tools are necessary for interpreting logs
+and making them accessible. Typically tracing tools are used to
+reconstruct the communication of nodes throughout a system, order their
+events, and present developers with a comprehensive view of an
+execution.
+%%
+    Tracing tools alone still produce large amounts of data, albeit
+their structure is more understandable than raw logs. Typically tracing
+tools are equipped with a visual front end, allowing users to quickly
+observe the behaviour of executions, and under scrutiny identify
+irregular or bugging behaviour. No one tracing technique is sufficient
+for debugging distributed systems. While all tracing tools are
+concerned with debugging they typically fall into 3 sub categories of
+performance tuning, distributed control flow, and model checking. Each
+of these tracing objectives have different flavors of visualization
+which pair with them.
+%%
+
+Performance tracing tools such
+as~\cite{tensorflow2015-whitepaper,36356,202574,Nagel96vampir:visualization,Zaki:1999:TSP:1080598.1080606},
+aim to decrease latency of distributed operations by maximizing
+concurrency, and minimizing time spent blocking. Performance
+visualizations often aligned parallel processes approximately, and color
+encode large latency's to help developers identify sub optimal
+segments of their executions.
+
+Control flow tracing tools such
+as~\cite{DBLP:conf:icse:2016c,AbrahamsonBBE2014,5071901} help
+developers debug fine grain messaging protocols. Visualizations of
+such traces must often encode all messages, as developers must reason
+about all potential message orderings. A common encoding for
+distributed control flow is a message passing graph, in which time is
+encoded as a vertical line for each traced host, and messages are
+directed arrows connecting host lines.
+
+Model checking trace tools like
+~\cite{Beschastnikh:2014:IMC:2568225:2568246,Barham03magpie:online,Walker98visualizingdynamic}
+help developers verify the correctness of their system by generating an
+abstract model of an execution. Such systems typically capture control
+flow, and state transitions of a trace, and compose a finite state
+machine (FSM) of a systems execution. Visualizations of such traces
+often encode the trace as a control flow points (such as the entrance
+of a function) connected with directed edges to other control flow
+points. These visuals can grow to an incomprehensible scale as the
+size of many models is exponential.
+
+We propose a tracing tool which captures state similar to a model
+checking trace tools, with the exception that rather than logging
+control flow, our tracing tool only logs a distributed programs state.
+Such tracing is unconventional and does not fit nicely into the
+aforementioned tracing categories. As such our unique requirements
+demand innovative visualization solutions. Entirely state based program
+analysis has ties in the world of trajectory
+programming~\cite{Waterland:2014:AAS:2654822.2541985,181250,Waterland:2013:CC:2485732.2485749}.
+In trajectory analysis simple ML techniques such as weather man, and
+mean prediction, as well as linear, and logistic regression are used
+to automatically predict and parrallelize computation based solely on
+state analysis.
+
+Our proposed visualization for traces of program state applies a
+similar ML technique, t-SNE clustering, which clusters points in a
+programs execution based on the similarities of a programs state.
+T-SNE requires a distancing function to cluster state, our distance
+function is as follows. The distance between two trace points $p$ and
+$p'$, whose state is composed of an identical set of variables with
+potentially different values $V \in \{v_1, v_2, \dots v_m\}$ calculate the XOR
+of each pair of variables. Each one bit in the resultant XOR is a
+difference of 1bit between the variables. We calculate the difference
+between two variables as the number of one bits in the XOR. The
+distance between trace points $p$ and $p'$ is the euclidean norm of
+all variable distances.
+
+We found the results of our initial technique promising, and the high
+level behaviour of distributed programs we traced. However, our
+visualization suffers due to a high level of computational complexity
+in running t-SNE. A single step of the iterative t-SNE algorithm is
+$O(n)$, and the algorithm is typically executed for greater that 20
+iterations before a reasonable clustering is obtained. Typical
+runtimes for traces consisting of 80 - 100 trace points, containing 80
+- 100 variables each resulted in runtimes in the tens of minutes. This
+significant barrier to interactivity lead us to alter the architecture
+of our tool, and implement parallel t-SNE to achieve interactive sub
+10s computation times.
+
+An additional feature of our tracing tool is the analysis of
+distributed data invariants. We infer invariants using Dinv, a
+distributed front end for Daikon~\cite{Ernst99dynamicallydiscovering}.
+These invariants are inferred over entire traces of an execution, and
+the number of invariants can be large and incomprehensible (~300-400).
+In addition to our improvements of t-SNE we refined our invariant
+analysis by first, logically detecting t-SNE clusters using k-Means
+clustering, deriving per cluster invariants, and refining those
+further to unique invariants for each cluster. This processing step
+greatly reduces spurious, and uninteresting invariants, and profiles
+cluster behaviour more precisely.
+
+
