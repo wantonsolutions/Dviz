@@ -2,3 +2,71 @@
 \section{Scope}
 \label{sec:scope}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Our initial distributed trace time curve visualization suffered a number of
+shortcommings. Mainly the time to compute the time curve using tsne was too
+slow, on the order of 8-10 minutes for the traces we wished to analyze. Such a
+compute time is problematic for us because we wished to achive interactive
+recomputation of the time curve by biasing clusters towards variables that
+users marked as important. The leading cause of our visualizations compute time
+was the single threaded JavaScript archetecture we used to run tsne. Another
+shortcomming of our visualization was the lack of labels on clusters, and the
+size of invariants generated for a single trace. T-SNE generates visual
+clusterings, but not logicial ones, so no further computation can be done to
+the clusters. Daikon, our tool for inferring distributed invariants, outputs
+all of its template invariants which are not violated during an execution. This
+number can be large, and many invariants are spurious. In the following section
+we discribe our archetectural shift from JavaScript to Go, the implementation
+of an effienct parrallel t-SNE, our back end support for skewing t-SNE
+clustering towards important variables. Further, we disribe our algorithm for
+computing visual t-SNE cluster into logical ones, our approach for calculating
+cluster invariants, and their subset of unique cluster invariants.
+
+\textbf{JavaScript to Go}
+
+JavaScript has many convienient frameworks for builing client server
+applications which are compatable with nearly all browsers. This fact lead us
+to develop our time curve prototype in a mixture of React~\cite{react}, and
+node.js~\cite{node.js}. Calculating XOR distance on our target traces was
+sufficiently slow with this framework that we cached results and served
+precomputed distance from our node.js server. Figure\todo{reference orignal
+javascript arcetecture} outlines our original archetecture. T-SNE coordinates
+were calculated client side, at latencies of ~30s. To achieve our goal of
+interactivity we desinged a new archetecture with a thin client, which issues
+computation requests to an optimized server written in Go. Our choice of Go was
+due to its concurrancy language primitives and increased performance. In
+section ~\ref{sec:imp} we discuss the details of our implementation.
+
+\textbf{Parallel t-SNE}
+
+t-SNE is a ML algorithm for dimensionality reduction. We leverage t-SNE as the
+state space of a trace point can be modeled as a high dimensional vector where
+each variable is a dimension with a magnitude equal to it's binary encoding. At
+it's core each itteration of t-SNE has 4 steps. First a cost gradent is
+calculated, using a distance function, second the gradent is normalized, third
+the gradent moves all projected points a distance, last the momentum of each
+point is updated for the next step, and the points are reprojected. Each stage
+of this algorithm has a data dependency on its prior step, therefore there is
+no trivial method for parallizing t-SNE. Our solution requires that seperate
+threads are delegated points for which they must compute values, and a master
+thread which coordinates barriers to protected against inconsistant memory
+accesses.
+
+\emph{xor}
+
+A single point in a distributed trace can consist of hundreds of variables.
+Computing the distance between any two points requires that we calculate XOR on
+each variable pair, and then calculate the euclidean norm of each. Our typical
+traces consist of ~100-300 variables per trace, and 100 trace points. As t-SNE
+is $O(n^2)$ per itteration, requiring aproximatly 20 itterations for reasonable
+results we end up with a typical number of XOR computations in the order of
+((300*300)/2)*100 * 20 ~100M XOR computations. We aliviate much of this
+complexity by precomputing XOR distance for each pairs of points and caching
+them. By doing so we only incur the full cost of running XOR distance for a
+single itteration of t-SNE
+
+\emph{tsne}
+
+\textbf{variable weighting and distance reporting}
+
+

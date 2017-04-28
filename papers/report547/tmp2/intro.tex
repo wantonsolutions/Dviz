@@ -69,30 +69,30 @@ mean prediction, as well as linear, and logistic regression are used
 to automatically predict and parrallelize computation based solely on
 state analysis.
 
-Our proposed visualization for traces of program state applies a
-similar ML technique, t-SNE clustering, which clusters points in a
-programs execution based on the similarities of a programs state.
-T-SNE requires a distancing function to cluster state, our distance
-function is as follows. The distance between two trace points $p$ and
-$p'$, whose state is composed of an identical set of variables with
-potentially different values $V \in \{v_1, v_2, \dots v_m\}$ calculate the XOR
-of each pair of variables. Each one bit in the resultant XOR is a
-difference of 1bit between the variables. We calculate the difference
-between two variables as the number of one bits in the XOR. The
-distance between trace points $p$ and $p'$ is the euclidean norm of
-all variable distances.
+Our proposed visualization for traces of program state applies a similar ML
+technique, t-SNE clustering wich is a dimensionality reduction
+algorithm\todo{cite tsne}. we leverage t-SNE to clusters points in a programs
+execution based on the similarities of a programs state.  T-SNE requires a
+distancing function to cluster state, our distance function is as follows. The
+distance between two trace points $p$ and $p'$, whose state is composed of an
+identical set of variables with potentially different values $V \in \{v_1, v_2,
+\dots v_m\}$ calculate the XOR of each pair of variables. Each one bit in the
+resultant XOR is a difference of 1bit between the variables. We calculate the
+difference between two variables as the number of one bits in the XOR. The
+distance between trace points $p$ and $p'$ is the euclidean norm of all
+variable distances.
 
-We found the results of our initial technique promising, and the high
-level behaviour of distributed programs we traced. However, our
-visualization suffers due to a high level of computational complexity
-in running t-SNE. A single step of the iterative t-SNE algorithm is
-$O(n)$, and the algorithm is typically executed for greater that 20
-iterations before a reasonable clustering is obtained. Typical
-runtimes for traces consisting of 80 - 100 trace points, containing 80
-- 100 variables each resulted in runtimes in the tens of minutes. This
-significant barrier to interactivity lead us to alter the architecture
-of our tool, and implement parallel t-SNE to achieve interactive sub
-10s computation times.
+We found the results of our initial technique promising, and the high level
+behaviour of distributed programs we traced. However, our visualization suffers
+due to a high level of computational complexity in running t-SNE. A single step
+of the iterative t-SNE algorithm is $O(n)$, and the algorithm is typically
+executed for greater that 20 iterations before a reasonable clustering is
+obtained. Typical runtimes for traces consisting of 80 - 100 trace points,
+containing 80 - 100 variables each resulted in runtimes in the tens of minutes.
+This significant barrier to interactivity lead us to alter the architecture of
+our tool, and implement parallel t-SNE to achieve interactive sub 10s
+computation times. \todo{talk about variable reweighting as an interactive
+technique} \todo{talk about why determining the cause of two distant points is dificult} \todo{talk about slow javascript}
 
 An additional feature of our tracing tool is the analysis of
 distributed data invariants. We infer invariants using Dinv, a
@@ -105,5 +105,7 @@ clustering, deriving per cluster invariants, and refining those
 further to unique invariants for each cluster. This processing step
 greatly reduces spurious, and uninteresting invariants, and profiles
 cluster behaviour more precisely.
+
+\todo{make a road map for the rest of the paper}
 
 
