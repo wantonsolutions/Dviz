@@ -2,3 +2,32 @@
 \section{Related Work}
 \label{sec:related}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+Performance tracing tools such
+as~\cite{tensorflow2015-whitepaper,36356,202574,Nagel96vampir:visualization,Zaki:1999:TSP:1080598.1080606},
+aim to decrease latency of distributed operations by maximizing
+concurrency, and minimizing time spent blocking. Performance
+visualizations often aligned parallel processes approximately, and color
+encode large latency's to help developers identify sub optimal
+segments of their executions.
+
+Control flow tracing tools such
+as~\cite{DBLP:conf:icse:2016c,AbrahamsonBBE2014,5071901} help
+developers debug fine grain messaging protocols. Visualizations of
+such traces must often encode all messages, as developers must reason
+about all potential message orderings. A common encoding for
+distributed control flow is a message passing graph, in which time is
+encoded as a vertical line for each traced host, and messages are
+directed arrows connecting host lines.
+
+Model checking trace tools like
+~\cite{Beschastnikh:2014:IMC:2568225:2568246,Barham03magpie:online,Walker98visualizingdynamic}
+help developers verify the correctness of their system by generating an
+abstract model of an execution. Such systems typically capture control
+flow, and state transitions of a trace, and compose a finite state
+machine (FSM) of a systems execution. Visualizations of such traces
+often encode the trace as a control flow points (such as the entrance
+of a function) connected with directed edges to other control flow
+points. These visuals can grow to an incomprehensible scale as the
+size of many models is exponential.

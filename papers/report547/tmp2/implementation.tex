@@ -3,8 +3,7 @@
 \label{sec:imp}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\textbf{Go Server}
-
+\subsection{Go Server}
 Section~\ref{sec:js2go} describes the shortcomings of JavaScript as a
 fast computational engine, here we describe our migration to a server
 written in Go, along with it's advantages and disadvantages. Our
@@ -20,8 +19,7 @@ extensibility. In the future trace data could be streamed to the
 server directly from an instrumented program, an operation which
 should bypass client functionality.
 
-\textbf{Parallel t-SNE}
-
+\subsection{Parallel t-SNE}
 T-SNE was implemented in two stages using an architecture similar to
 in memory Map-Reduce. We use a master worker system wherein a master
 schedules treads equal to the number of available cores on a machine,
@@ -41,8 +39,7 @@ request. When complete they single the leader.
 Our implementation is built off of~\cite{tsne4go} and required an
 additional 80 lines of Go to parrallelize.
 
-\textbf{Variable weighting}
-
+\subsection{Variable weighting}
 Reporting variable weights to our client is simplistic from an
 implementation perspective, but with a few subtle pitfalls when
 implemented practically. Variable differences are calculated during XOR
@@ -55,8 +52,7 @@ differences reduces the matrix to 2GB. Further much of data in the
 matrix is redundant (i.e. variable names) post tar.gz compression our
 matrices averaged 35MB.
 
-\textbf{Cluster Detection}
-
+\subsection{Cluster Detection}
 To detect t-SNE clusters for further processing we leveraged an off
 the shelf k-means clustering library goxmeans~\cite{goxmeans}. Goxmeans
 generates multiple cluster models per data set. In all cases we select
@@ -65,8 +61,7 @@ which matches the number of user selected clusters. In our current
 implementation, cluster\# selection has not been integrated into our
 front end visualization, and specified via command line.
 
-\textbf{Daikon and Cluster Invariants}
-
+\subsection{Daikon and Cluster Invariants}
 Logical clusters are fed as input into a Go frontend which executes
 Daikon as a separate process. Cluster invariants are inferred by
 partitioning original traces into sub traces which map to clusters, and
@@ -75,3 +70,5 @@ checking each clusters invariants against all others. Unique
 invariants, are invariants which are not present in any other cluster.
 Daikon does not have a Go API and thus the files in the Linux
 operating system are used to coordinate between the two processes.
+
+

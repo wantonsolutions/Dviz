@@ -4,57 +4,30 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-The complexities of distributed systems have long plagued
-their developers. Writing code which executes on various machines is
-intrinsically more complicated due to networking eccentricities, such as
-failures, partitions, and message delays. Debugging and checking the
-correctness of such systems is laborious and technical, as developers
-must inspect large logs for small discrepancies in expected values, and
-timestamps. At scale auxiliary tools are necessary for interpreting logs
-and making them accessible. Typically tracing tools are used to
-reconstruct the communication of nodes throughout a system, order their
-events, and present developers with a comprehensive view of an
-execution.
+The complexities of distributed systems have long plagued their
+developers. Writing code which executes on various machines is
+intrinsically more complicated due to networking eccentricities, such
+as failures, partitions, and message delays. Debugging and checking
+the correctness of such systems is laborious and technical, as
+developers must inspect large logs for small discrepancies in expected
+values, and timestamps. At scale auxiliary tools are necessary for
+interpreting logs and making them accessible. Typically tracing tools
+are used to reconstruct the communication of nodes throughout a
+system, order their events, and present developers with a
+comprehensive view of an execution.
 %%
     Tracing tools alone still produce large amounts of data, albeit
-their structure is more understandable than raw logs. Typically tracing
-tools are equipped with a visual front end, allowing users to quickly
-observe the behaviour of executions, and under scrutiny identify
-irregular or bugging behaviour. No one tracing technique is sufficient
-for debugging distributed systems. While all tracing tools are
-concerned with debugging they typically fall into 3 sub categories of
-performance tuning, distributed control flow, and model checking. Each
-of these tracing objectives have different flavors of visualization
-which pair with them.
+    their structure is more understandable than raw logs. Typically
+    tracing tools are equipped with a visual front end, allowing users
+    to quickly observe the behaviour of executions, and under scrutiny
+    identify irregular or bugging behaviour. No one tracing technique
+    is sufficient for debugging distributed systems. While all tracing
+    tools are concerned with debugging they typically fall into 3 sub
+    categories of performance tuning, distributed control flow, and
+    model checking. Each of these tracing objectives have different
+    flavors of visualization which pair with them. We overview these
+    visualization techniques in Section~\ref{sec:related}
 %%
-
-Performance tracing tools such
-as~\cite{tensorflow2015-whitepaper,36356,202574,Nagel96vampir:visualization,Zaki:1999:TSP:1080598.1080606},
-aim to decrease latency of distributed operations by maximizing
-concurrency, and minimizing time spent blocking. Performance
-visualizations often aligned parallel processes approximately, and color
-encode large latency's to help developers identify sub optimal
-segments of their executions.
-
-Control flow tracing tools such
-as~\cite{DBLP:conf:icse:2016c,AbrahamsonBBE2014,5071901} help
-developers debug fine grain messaging protocols. Visualizations of
-such traces must often encode all messages, as developers must reason
-about all potential message orderings. A common encoding for
-distributed control flow is a message passing graph, in which time is
-encoded as a vertical line for each traced host, and messages are
-directed arrows connecting host lines.
-
-Model checking trace tools like
-~\cite{Beschastnikh:2014:IMC:2568225:2568246,Barham03magpie:online,Walker98visualizingdynamic}
-help developers verify the correctness of their system by generating an
-abstract model of an execution. Such systems typically capture control
-flow, and state transitions of a trace, and compose a finite state
-machine (FSM) of a systems execution. Visualizations of such traces
-often encode the trace as a control flow points (such as the entrance
-of a function) connected with directed edges to other control flow
-points. These visuals can grow to an incomprehensible scale as the
-size of many models is exponential.
 
 We propose a tracing tool which captures state similar to a model
 checking trace tools, with the exception that rather than logging
@@ -71,7 +44,7 @@ state analysis.
 
 Our proposed visualization for traces of program state applies a similar ML
 technique, t-SNE clustering wich is a dimensionality reduction
-algorithm\todo{cite tsne}. we leverage t-SNE to clusters points in a programs
+algorithm~\cite{Hinton_visualizingdata}. we leverage t-SNE to clusters points in a programs
 execution based on the similarities of a programs state.  T-SNE requires a
 distancing function to cluster state, our distance function is as follows. The
 distance between two trace points $p$ and $p'$, whose state is composed of an
@@ -91,14 +64,24 @@ obtained. Typical runtimes for traces consisting of 80 - 100 trace points,
 containing 80 - 100 variables each resulted in runtimes in the tens of minutes.
 This significant barrier to interactivity lead us to alter the architecture of
 our tool, and implement parallel t-SNE to achieve interactive sub 10s
-computation times. \todo{talk about variable reweighting as an interactive
-technique} \todo{talk about why determining the cause of two distant points is dificult} \todo{talk about slow javascript}
+computation times. 
+
+Our prototype visualization allowed users to inspect trace points, and
+view individual variable values, without the ability to compaire
+points. All variables were weighted equally when computing weights.
+Our interactivity goals are two fold first developers should be able
+to query two points, and inspect varaibles which cuased them to be
+distant from one another. Second we acknowledge that all variables are
+not of equal importance in a program. Some variables values
+drastically alter the behaviour of a program while other do not. To
+this end we extended our interface to support re-clustering with
+increased weights for important user specified variables.
 
 An additional feature of our tracing tool is the analysis of
 distributed data invariants. We infer invariants using Dinv, a
 distributed front end for Daikon~\cite{Ernst99dynamicallydiscovering}.
 These invariants are inferred over entire traces of an execution, and
-the number of invariants can be large and incomprehensible (~300-400).
+the number of invariants can be large and incomprehensible (300-400).
 In addition to our improvements of t-SNE we refined our invariant
 analysis by first, logically detecting t-SNE clusters using k-Means
 clustering, deriving per cluster invariants, and refining those
