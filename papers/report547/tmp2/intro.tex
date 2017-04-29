@@ -43,7 +43,7 @@ to automatically predict and parrallelize computation based solely on
 state analysis.
 
 Our proposed visualization for traces of program state applies a similar ML
-technique, t-SNE clustering wich is a dimensionality reduction
+technique, t-SNE clustering which is a dimensionality reduction
 algorithm~\cite{Hinton_visualizingdata}. we leverage t-SNE to clusters points in a programs
 execution based on the similarities of a programs state.  T-SNE requires a
 distancing function to cluster state, our distance function is as follows. The
@@ -67,10 +67,10 @@ our tool, and implement parallel t-SNE to achieve interactive sub 10s
 computation times. 
 
 Our prototype visualization allowed users to inspect trace points, and
-view individual variable values, without the ability to compaire
+view individual variable values, without the ability to compare
 points. All variables were weighted equally when computing weights.
 Our interactivity goals are two fold first developers should be able
-to query two points, and inspect varaibles which cuased them to be
+to query two points, and inspect variables which caused them to be
 distant from one another. Second we acknowledge that all variables are
 not of equal importance in a program. Some variables values
 drastically alter the behaviour of a program while other do not. To
@@ -89,10 +89,10 @@ further to unique invariants for each cluster. This processing step
 greatly reduces spurious, and uninteresting invariants, and profiles
 cluster behaviour more precisely.
 
-The rest of the paper is layed out as follows.
+The rest of the paper is laid out as follows.
 Section~\ref{sec:related} covers related work. Section~\ref{sec:scope}
 overviews the scope of our contributions, and Section~\ref{sec:imp}
-covers our implemntation. Section~\ref{sec:res} details our
-preformance results and data refinement accuracy. Finally
+covers our implementation. Section~\ref{sec:res} details our
+performance results and data refinement accuracy. Finally
 Section~\ref{sec:dafw} and Section~\ref{sec:conclusion} denote
-potential future work, and the conclustion of the paper.
+potential future work, and the conclusion of the paper.
