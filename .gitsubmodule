@@ -1,0 +1,3 @@
+[submodule "gomatrix"]
+    path = vendor/github.com/bobhancock/gomatrix
+    urs = https:/github.com/bobhancock/gomatrix
