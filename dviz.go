@@ -187,7 +187,7 @@ func executeFile() {
 	if *draw {
 		render = "default"
 		dat(&(resp.Plane))
-		gnuplotPlane()
+		//gnuplotPlane()
 		renderImage()
 	}
 
@@ -219,17 +219,16 @@ func dviz(states []State) *Response {
 	sp := StatePlane{States: states, Plane: dplane, VarDiff: vdiff, Points: make([]tsne4go.Point, 0)}
 
 	tsne := tsne4go.New(sp, nil)
-	for k := 0; k < 5; k++ {
+	for k := 1; k <= 10; k++ {
 		start := time.Now()
 		for i := 0; i < *tsneItt; i++ {
 			tsne.Step()
-			//tsne.Step2() //Parallel step
+			//tsne.Step2(k) //Parallel step
 			//logger.Debugf("cost %d", cost)
 		}
-		fmt.Printf("time %f\n", time.Now().Sub(start).Seconds())
+		fmt.Printf("%f\n", time.Now().Sub(start).Seconds())
 	}
 
-	return nil
 	tsne.NormalizeSolution()
 	s := tsne.Solution
 	//logger.Debugf("%d", s[0][0])
@@ -251,8 +250,8 @@ func dviz(states []State) *Response {
 	}
 	fmt.Println("Load complete")
 
-	var k = 2
-	var kmax = 6
+	var k = 3
+	var kmax = 3
 	// Type of data measurement between points.
 	var measurer goxmeans.EuclidDist
 	// How to select your initial centroids.
@@ -297,9 +296,10 @@ func dviz(states []State) *Response {
 		sp.States[i].ClusterId = clusterMap[point]
 	}
 
-	clusters := ClusterInvariants(&sp)
+	//clusters := ClusterInvariants(&sp)
+	//resp := Response{Clusters: clusters, Plane: sp}
 
-	resp := Response{Clusters: clusters, Plane: sp}
+	resp := Response{Clusters: nil, Plane: sp}
 	return &resp
 }
 

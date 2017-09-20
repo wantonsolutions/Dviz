@@ -11,7 +11,7 @@ as failures, partitions, and message delays. Debugging and checking
 the correctness of such systems is laborious and technical, as
 developers must inspect large logs for small discrepancies in expected
 values, and timestamps. At scale auxiliary tools are necessary for
-interpreting logs and making them accessible. Typically tracing tools
+interpreting logs and making them understandable. Typically tracing tools
 are used to reconstruct the communication of nodes throughout a
 system, order their events, and present developers with a
 comprehensive view of an execution.
@@ -21,7 +21,7 @@ comprehensive view of an execution.
     tracing tools are equipped with a visual front end, allowing users
     to quickly observe the behaviour of executions, and under scrutiny
     identify irregular or bugging behaviour. No one tracing technique
-    is sufficient for debugging distributed systems. While all tracing
+    is sufficient for debugging distributed systems. While most tracing
     tools are concerned with debugging they typically fall into 3 sub
     categories of performance tuning, distributed control flow, and
     model checking. Each of these tracing objectives have different
@@ -42,18 +42,19 @@ mean prediction, as well as linear, and logistic regression are used
 to automatically predict and parrallelize computation based solely on
 state analysis.
 
-Our proposed visualization for traces of program state applies a similar ML
-technique, t-SNE clustering which is a dimensionality reduction
-algorithm~\cite{Hinton_visualizingdata}. we leverage t-SNE to clusters points in a programs
-execution based on the similarities of a programs state.  T-SNE requires a
-distancing function to cluster state, our distance function is as follows. The
-distance between two trace points $p$ and $p'$, whose state is composed of an
-identical set of variables with potentially different values $V \in \{v_1, v_2,
-\dots v_m\}$ calculate the XOR of each pair of variables. Each one bit in the
-resultant XOR is a difference of 1bit between the variables. We calculate the
-difference between two variables as the number of one bits in the XOR. The
-distance between trace points $p$ and $p'$ is the euclidean norm of all
-variable distances.
+Our proposed visualization for traces of program state applies a
+similar ML technique, t-SNE clustering, a dimensionality reduction
+algorithm~\cite{Hinton_visualizingdata}. We leverage t-SNE to clusters
+points in a programs execution based on the similarities of a programs
+state.  T-SNE requires a distancing function to cluster state, our
+distance function is as follows. The distance between two trace points
+$p$ and $p'$, whose state is composed of an identical set of variables
+with potentially different values. For each matching pair of variables
+XOR them together. Each 1 bit in the resultant XOR is a difference of
+1 bit between the variables. We calculate the difference between two
+variables as the number of one bits in the XOR. The distance between
+trace points $p$ and $p'$ is the euclidean norm of all variable
+distances.
 
 We found the results of our initial technique promising, and the high level
 behaviour of distributed programs we traced. However, our visualization suffers

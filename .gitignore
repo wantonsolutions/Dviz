@@ -8,3 +8,6 @@
 *.plot
 *.dat
 *.png
+*.diff
+*.dtrace
+*.gz

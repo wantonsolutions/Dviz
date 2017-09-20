@@ -26,6 +26,12 @@ Dviz relies on
 Dviz generates its vizualization by analyzing a json file of a distributed systems execution. To generate the json run a Dinv instrumented system to generate logs. Then run
 ```
 dinv -l -json *d.txt *g.txt
+
+To run Dviz in server mode and serve out a defalut file run 
+
+```
+Dviz -fast=true -file=test/slowinput.json -s=true -itt=20
+
 ```
 
 To generate a json of the systems distributed state. Dviz takes the json file as a command line argument.

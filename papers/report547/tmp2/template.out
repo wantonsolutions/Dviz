@@ -1,5 +1,18 @@
 \BOOKMARK [1][]{section.2}{Introduction and Motivation}{}% 1
-\BOOKMARK [1][]{section.3}{Scope}{}% 2
-\BOOKMARK [1][]{section.4}{Implementation}{}% 3
-\BOOKMARK [1][]{section.5}{Results}{}% 4
-\BOOKMARK [1][]{section.6}{Discussion and Future Work}{}% 5
+\BOOKMARK [1][]{section.3}{Related Work}{}% 2
+\BOOKMARK [1][]{section.4}{Scope}{}% 3
+\BOOKMARK [2][]{subsection.6}{JavaScript to Go}{section.4}% 4
+\BOOKMARK [2][]{subsection.7}{Parallel t-SNE}{section.4}% 5
+\BOOKMARK [2][]{subsection.9}{variable weighting and distance reporting}{section.4}% 6
+\BOOKMARK [2][]{subsection.10}{Cluster Detection, and Invariants}{section.4}% 7
+\BOOKMARK [1][]{section.11}{Implementation}{}% 8
+\BOOKMARK [2][]{subsection.12}{Go Server}{section.11}% 9
+\BOOKMARK [2][]{subsection.13}{Parallel t-SNE}{section.11}% 10
+\BOOKMARK [2][]{subsection.14}{Variable weighting}{section.11}% 11
+\BOOKMARK [2][]{subsection.15}{Cluster Detection}{section.11}% 12
+\BOOKMARK [2][]{subsection.16}{Daikon and Cluster Invariants}{section.11}% 13
+\BOOKMARK [1][]{section.17}{Results}{}% 14
+\BOOKMARK [2][]{subsection.18}{XOR distance and t-SNE}{section.17}% 15
+\BOOKMARK [2][]{subsection.21}{Clustering}{section.17}% 16
+\BOOKMARK [1][]{section.23}{Discussion and Future Work}{}% 17
+\BOOKMARK [1][]{section.24}{Conclusion}{}% 18
