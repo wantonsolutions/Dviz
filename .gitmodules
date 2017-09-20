@@ -1,18 +1,18 @@
 [submodule "gomatrix"]
     path = vendor/github.com/bobhancock/gomatrix
-    url = https:/github.com/bobhancock/gomatrix
+    url = https://github.com/bobhancock/gomatrix
 
 [submodule "goxmeans"]
     path = vendor/github.com/bobhancock/goxmeans
-    url = https:/github.com/bobhancock/goxmeans
+    url = https://github.com/bobhancock/goxmeans
 
 [submodule "go-logging"]
     path = vendor/github.com/op/go-logging
-    url = https:/github.com/op/go-logging
+    url = https://github.com/op/go-logging
 
 [submodule "tsne4go"]
     path = vendor/github.com/sacado/tsne4go
-    url = https:/github.com/sacado/tsne4go
+    url = https://github.com/sacado/tsne4go
 
 
 
